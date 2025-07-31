@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collatz Experiment</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useRef, useCallback } = React;
+
+        const CollatzExperiment = () => {
+          const [results, setResults] = useState([]);
+          const [isRunning, setIsRunning] = useState(false);
+          const [selectedX, setSelectedX] = useState(2);
+          const [maxIterations, setMaxIterations] = useState(100000);
+          const [progress, setProgress] = useState(0);
+          const [finalStats, setFinalStats] = useState(null);
+          const [currentlyProcessing, setCurrentlyProcessing] = useState(0);
+          const abortControllerRef = useRef(null);
+
+          const generalizedCollatz = useCallback((n, x, maxIter = 100000) => {
+            if (n <= 0) return {
+              sequence: [n],
+              converged: false,
+              iterations: 0,
+              finalValue: n,
+              algorithmSwitches: 0,
+              reason: "Invalid starting number (≤ 0)"
+            };
+            
+            const sequence = [n];
+            let current = n;
+            let iterations = 0;
+            let currentX = x;
+            let algorithmSwitches = 0;
+            const maxSwitches = 10;
+            const maxValue = 1e15;
+            const seenValues = new Set();
+            
+            while (current !== 1 && iterations < maxIter && algorithmSwitches < maxSwitches) {
+              if (seenValues.has(current) && iterations > 100) {
+                return {
+                  sequence: sequence.slice(0, 1000),
+                  converged: false,
+                  iterations: iterations,
+                  finalValue: current,
+                  algorithmSwitches: algorithmSwitches,
+                  reason: "Detected cycle"
+                };
+              }
+              seenValues.add(current);
+              
+              if (currentX === 0) {
+                return {
+                  sequence: sequence,
+                  converged: false,
+                  iterations: iterations,
+                  finalValue: current,
+                  algorithmSwitches: algorithmSwitches,
+                  reason: "Division by zero (x=0)"
+                };
+              }
+              
+              if (currentX === 1) {
+                if (current === 1) break;
+                return {
+                  sequence: sequence,
+                  converged: false,
+                  iterations: iterations,
+                  finalValue: current,
+                  algorithmSwitches: algorithmSwitches,
+                  reason: "Infinite loop (x=1, n≠1)"
+                };
+              }
+              
+              const beforeValue = current;
+              
+              if (current % currentX === 0) {
+                current = Math.floor(current / currentX);
+              } else {
+                if (currentX === 2) {
+                  current = 3 * current + 1;
+                } else {
+                  const remainder = current % currentX;
+                  let addend;
+                  
+                  if (remainder <= currentX / 2) {
+                    addend = -remainder;
+                  } else {
+                    addend = currentX - remainder;
+                  }
+                  
+                  current = current + addend;
+                }
+              }
+              
+              if (current <= 0) {
+                if (currentX > 2 && algorithmSwitches < maxSwitches) {
+                  algorithmSwitches++;
+                  current = beforeValue;
+                  
+                  if (currentX >= 50) currentX = 2;
+                  else if (currentX >= 20) currentX = 3;
+                  else if (currentX >= 10) currentX = 2;
+                  else if (currentX >= 5) currentX = Math.max(2, Math.floor(currentX / 2));
+                  else if (currentX === 4) currentX = 3;
+                  else if (currentX === 3) currentX = 2;
+                  else currentX = 2;
+                  
+                  continue;
+                } else {
+                  return {
+                    sequence: sequence.slice(0, 1000),
+                    converged: false,
+                    iterations: iterations,
+                    finalValue: current,
+                    algorithmSwitches: algorithmSwitches,
+                    reason: "Reached non-positive value"
+                  };
+                }
+              }
+              
+              if (current > maxValue) {
+                if (currentX > 2 && algorithmSwitches < maxSwitches) {
+                  algorithmSwitches++;
+                  current = beforeValue;
+                  
+                  if (currentX >= 10) currentX = 2;
+                  else if (currentX >= 5) currentX = 3;
+                  else if (currentX >= 3) currentX = 2;
+                  else currentX = 2;
+                  
+                  continue;
+                } else {
+                  return {
+                    sequence: sequence.slice(0, 1000),
+                    converged: false,
+                    iterations: iterations,
+                    finalValue: current,
+                    algorithmSwitches: algorithmSwitches,
+                    reason: "Number too large (overflow protection)"
+                  };
+                }
+              }
+              
+              sequence.push(current);
+              iterations++;
+              
+              if (sequence.length > 10000) {
+                sequence.splice(1, sequence.length - 5000);
+              }
+              
+              if (seenValues.size > 50000) {
+                seenValues.clear();
+              }
+            }
+            
+            return {
+              sequence: sequence.slice(0, 1000),
+              converged: current === 1,
+              iterations: iterations,
+              finalValue: current,
+              algorithmSwitches: algorithmSwitches,
+              reason: current === 1 ? "Converged to 1" :
+                      algorithmSwitches >= maxSwitches ? "Max algorithm switches reached" :
+                      "Max iterations reached"
+            };
+          }, []);
+
+          const runExperiment = () => {
+            if (isRunning) return;
+            
+            setIsRunning(true);
+            setProgress(0);
+            setFinalStats(null);
+            setResults([]);
+            setCurrentlyProcessing(0);
+            
+            const totalNumbers = 1000000;
+            const chunkSize = 5000;
+            let processedCount = 0;
+            
+            let testStats = {
+              converged: 0,
+              cycles: 0,
+              maxIter: 0,
+              negative: 0,
+              maxSwitches: 0,
+              divByZero: 0,
+              infiniteLoop: 0,
+              overflow: 0,
+              invalid: 0,
+              totalIterations: 0,
+              maxIterationsSeen: 0,
+              totalMaxValue: 0,
+              totalSwitches: 0,
+              totalComputationTime: 0,
+              sampleResults: [],
+              maxIterResult: null,
+              maxValueResult: null,
+              longestSequenceResult: null,
+              highestSwitchesResult: null,
+              fastestResult: null,
+              slowestResult: null,
+            };
+            
+            let currentMaxValue = 0;
+            let currentMaxIterations = 0;
+            let currentLongestSequenceLength = 0;
+            let fastestTime = Infinity;
+            let slowestTime = 0;
+            
+            abortControllerRef.current = new AbortController();
+            console.log(`🚀 Starting Collatz experiment: 1 to ${totalNumbers.toLocaleString()}`);
+            
+            const processChunk = (startIndex) => {
+              if (abortControllerRef.current.signal.aborted) {
+                console.log("❌ Computation stopped by user");
+                setIsRunning(false);
+                return;
+              }
+              
+              const endIndex = Math.min(startIndex + chunkSize, totalNumbers + 1);
+              
+              for (let i = startIndex; i < endIndex; i++) {
+                if (abortControllerRef.current.signal.aborted) {
+                  setIsRunning(false);
+                  return;
+                }
+                
+                setCurrentlyProcessing(i);
+                
+                const startTime = performance.now();
+                const result = generalizedCollatz(i, selectedX, maxIterations);
+                const endTime = performance.now();
+                const computationTime = endTime - startTime;
+                
+                testStats.totalComputationTime += computationTime;
+                testStats.totalIterations += result.iterations;
+                testStats.maxIterationsSeen = Math.max(testStats.maxIterationsSeen, result.iterations);
+                testStats.totalSwitches += result.algorithmSwitches;
+                
+                const maxValueInSeq = result.sequence.length > 0 ? Math.max(...result.sequence) : i;
+                testStats.totalMaxValue += maxValueInSeq;
+                
+                switch (result.reason) {
+                  case "Converged to 1":
+                    testStats.converged++;
+                    break;
+                  case "Detected cycle":
+                    testStats.cycles++;
+                    break;
+                  case "Max iterations reached":
+                    testStats.maxIter++;
+                    if (!testStats.maxIterResult || result.iterations > testStats.maxIterResult.iterations) {
+                      testStats.maxIterResult = { startingNumber: i, ...result, maxValue: maxValueInSeq, computationTime };
+                    }
+                    break;
+                  case "Reached non-positive value":
+                    testStats.negative++;
+                    break;
+                  case "Max algorithm switches reached":
+                    testStats.maxSwitches++;
+                    break;
+                  case "Division by zero (x=0)":
+                    testStats.divByZero++;
+                    break;
+                  case "Infinite loop (x=1, n≠1)":
+                    testStats.infiniteLoop++;
+                    break;
+                  case "Number too large (overflow protection)":
+                    testStats.overflow++;
+                    break;
+                  case "Invalid starting number (≤ 0)":
+                    testStats.invalid++;
+                    break;
+                }
+                
+                if (maxValueInSeq > currentMaxValue) {
+                  currentMaxValue = maxValueInSeq;
+                  testStats.maxValueResult = { startingNumber: i, ...result, maxValue: maxValueInSeq, computationTime };
+                }
+                
+                if (result.sequence.length > currentLongestSequenceLength) {
+                  currentLongestSequenceLength = result.sequence.length;
+                  testStats.longestSequenceResult = { 
+                    startingNumber: i, 
+                    ...result, 
+                    maxValue: maxValueInSeq, 
+                    computationTime, 
+                    sequenceLength: result.sequence.length 
+                  };
+                }
+                
+                if (result.algorithmSwitches > (testStats.highestSwitchesResult?.algorithmSwitches || -1)) {
+                  testStats.highestSwitchesResult = { startingNumber: i, ...result, maxValue: maxValueInSeq, computationTime };
+                }
+                
+                if (computationTime < fastestTime) {
+                  fastestTime = computationTime;
+                  testStats.fastestResult = { startingNumber: i, ...result, maxValue: maxValueInSeq, computationTime };
+                }
+                
+                if (computationTime > slowestTime) {
+                  slowestTime = computationTime;
+                  testStats.slowestResult = { startingNumber: i, ...result, maxValue: maxValueInSeq, computationTime };
+                }
+                
+                if (i <= 20 || 
+                    (i <= 100 && i % 10 === 0) || 
+                    (i <= 1000 && i % 100 === 0) || 
+                    (i <= 10000 && i % 1000 === 0) ||
+                    i % 50000 === 0) {
+                  if (!testStats.sampleResults.some(r => r.startingNumber === i)) {
+                    testStats.sampleResults.push({
+                      startingNumber: i,
+                      ...result,
+                      maxValue: maxValueInSeq,
+                      sequenceLength: result.sequence.length,
+                      computationTime: computationTime.toFixed(4)
+                    });
+                  }
+                }
+                
+                processedCount++;
+              }
+              
+              const newProgress = Math.round((processedCount / totalNumbers) * 100);
+              setProgress(newProgress);
+              
+              if (newProgress % 10 === 0 && newProgress > 0) {
+                console.log(`📈 Progress: ${newProgress}% (${processedCount.toLocaleString()}/${totalNumbers.toLocaleString()})`);
+              }
+              
+              if (endIndex <= totalNumbers) {
+                setTimeout(() => processChunk(endIndex), 10);
+              } else {
+                const finalStatsComputed = {
+                  totalProcessed: processedCount,
+                  converged: testStats.converged,
+                  cycles: testStats.cycles,
+                  maxIter: testStats.maxIter,
+                  negative: testStats.negative,
+                  maxSwitches: testStats.maxSwitches,
+                  divByZero: testStats.divByZero,
+                  infiniteLoop: testStats.infiniteLoop,
+                  overflow: testStats.overflow,
+                  invalid: testStats.invalid,
+                  avgIterations: processedCount > 0 ? (testStats.totalIterations / processedCount).toFixed(2) : '0.00',
+                  maxIterationsSeen: testStats.maxIterationsSeen,
+                  avgMaxValue: processedCount > 0 ? (testStats.totalMaxValue / processedCount).toFixed(2) : '0.00',
+                  totalSwitches: testStats.totalSwitches,
+                  totalTimeMs: testStats.totalComputationTime.toFixed(2),
+                  avgTimeMs: processedCount > 0 ? (testStats.totalComputationTime / processedCount).toFixed(4) : '0.0000',
+                  convergenceRate: processedCount > 0 ? ((testStats.converged / processedCount) * 100).toFixed(3) : '0.000',
+                  maxIterResult: testStats.maxIterResult,
+                  maxValueResult: testStats.maxValueResult,
+                  longestSequenceResult: testStats.longestSequenceResult,
+                  highestSwitchesResult: testStats.highestSwitchesResult,
+                  fastestResult: testStats.fastestResult,
+                  slowestResult: testStats.slowestResult,
+                };
+                
+                console.log(`✅ Computation complete! Processed ${processedCount.toLocaleString()} numbers`);
+                console.log(`📊 Final convergence rate: ${finalStatsComputed.convergenceRate}%`);
+                
+                setFinalStats(finalStatsComputed);
+                setResults(testStats.sampleResults.sort((a, b) => a.startingNumber - b.startingNumber));
+                setIsRunning(false);
+                setCurrentlyProcessing(0);
+              }
+            };
+            
+            processChunk(1);
+          };
+
+          const stopExperiment = () => {
+            if (abortControllerRef.current) {
+              abortControllerRef.current.abort();
+              console.log("🛑 User requested stop");
+            }
+          };
+
+          return (
+            <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+              <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Generalized Collatz Experiment
+                </h1>
+                <p className="text-gray-600 mb-6">Computing 1,000,000 iterations with enhanced algorithm</p>
+                
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg mb-6 border border-blue-200">
+                  <h2 className="text-xl font-semibold mb-4 text-gray-800">Algorithm Parameters</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <label className="flex flex-col gap-2">
+                      <span className="font-medium text-gray-700">Value of x:</span>
+                      <select
+                        value={selectedX}
+                        onChange={(e) => setSelectedX(parseInt(e.target.value))}
+                        className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isRunning}
+                      >
+                        {Array.from({ length: 101 }, (_, i) => (
+                          <option key={i} value={i}>
+                            {i === 0 ? "0 (Division by zero)" :
+                             i === 1 ? "1 (Trivial case)" :
+                             i === 2 ? "2 (Classic Collatz)" :
+                             `${i}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-2">
+                      <span className="font-medium text-gray-700">Max iterations:</span>
+                      <input
+                        type="number"
+                        value={maxIterations}
+                        onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isRunning}
+                        min="1000"
+                        max="1000000"
+                      />
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      <span className="font-medium text-gray-700">Control:</span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={runExperiment}
+                          disabled={isRunning}
+                          className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 transition-all duration-200 font-medium"
+                        >
+                          {isRunning ? 'Running...' : 'Start Experiment'}
+                        </button>
+                        {isRunning && (
+                          <button
+                            onClick={stopExperiment}
+                            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200 font-medium"
+                          >
+                            Stop
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {isRunning && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${progress}%` }}
+                          ></div>
+                        </div>
+                        <span className="font-bold text-lg text-gray-700">{progress}%</span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Currently processing: <span className="font-mono font-bold">{currentlyProcessing.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {finalStats && (
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                  <h2 className="text-2xl font-semibold mb-4 text-gray-800">📊 Final Statistics</h2>
+                  <div className="text-center mb-6">
+                    <div className="text-4xl font-bold text-green-600">{finalStats.convergenceRate}%</div>
+                    <div className="text-gray-600">Convergence Rate</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {finalStats.converged.toLocaleString()} out of {finalStats.totalProcessed.toLocaleString()} numbers converged
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-green-50 p-3 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-green-600">{finalStats.converged.toLocaleString()}</div>
+                      <div className="text-xs text-gray-600">Converged</div>
+                    </div>
+                    <div className="bg-yellow-50 p-3 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-yellow-600">{finalStats.cycles.toLocaleString()}</div>
+                      <div className="text-xs text-gray-600">Cycles</div>
+                    </div>
+                    <div className="bg-red-50 p-3 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-red-600">{finalStats.maxIter.toLocaleString()}</div>
+                      <div className="text-xs text-gray-600">Max Iter</div>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-purple-600">{finalStats.avgIterations}</div>
+                      <div className="text-xs text-gray-600">Avg Iterations</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {!isRunning && !finalStats && (
+                <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+                  <div className="text-6xl mb-4">🚀</div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-4">Ready to Launch</h3>
+                  <p className="text-gray-600 mb-6">
+                    Click "Start Experiment" to begin computing the Collatz conjecture for 1,000,000 numbers.
+                  </p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                    <div className="font-semibold mb-2">💡 Pro Tips:</div>
+                    <ul className="text-left space-y-1">
+                      <li>• Open browser console (F12) for detailed logs</li>
+                      <li>• Try different values of x to see algorithm behavior</li>
+                      <li>• The computation will take several minutes</li>
+                      <li>• You can stop the computation at any time</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+              
+              {isRunning && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">🔥 Live Computation Status</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-blue-600">{currentlyProcessing.toLocaleString()}</div>
+                      <div className="text-sm text-gray-600">Currently Processing</div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-green-600">{progress}%</div>
+                      <div className="text-sm text-gray-600">Progress</div>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {progress > 0 ? Math.round((100 - progress) * 0.5) : "---"}
+                      </div>
+                      <div className="text-sm text-gray-600">Est. Minutes Left</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        ReactDOM.render(<CollatzExperiment />, document.getElementById('root'));
+    </script>
+</body>
+</html>
