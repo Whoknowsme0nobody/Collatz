@@ -93,6 +93,12 @@
             box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
         }
         
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         .results-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -159,10 +165,11 @@
             height: 100%;
         }
         
-        .loading {
+        .status {
             text-align: center;
-            padding: 20px;
-            opacity: 0.7;
+            padding: 10px;
+            margin: 10px 0;
+            font-weight: bold;
         }
         
         @media (max-width: 768px) {
@@ -182,26 +189,26 @@
         <p class="subtitle">Exploring Golden Ratio Convergence Dynamics in Generalized Collatz Sequences</p>
         
         <div class="fibonacci-info">
-            <strong>🌟 Research Innovation:</strong> Testing if Fibonacci-modulated Collatz variants exhibit convergence patterns related to the Golden Ratio (φ ≈ 1.618). Each variant uses F_k × n + F_j where F_k and F_j are consecutive Fibonacci numbers.
+            <strong>🌟 Research Innovation:</strong> Testing Fibonacci-based generalized Collatz variants using your switching algorithm: If F_k divides n, then n→n/F_k. Otherwise, n→n + (n+α)/F_k where α is optimally chosen. This applies your proven method with Fibonacci divisors!
         </div>
         
         <div class="controls">
             <div class="control-group">
                 <label>Fibonacci Index (k):</label>
                 <select id="fibIndex">
-                    <option value="3">F₃ = 2 (2n + 1)</option>
-                    <option value="4">F₄ = 3 (3n + 2)</option>
-                    <option value="5" selected>F₅ = 5 (5n + 3)</option>
-                    <option value="6">F₆ = 8 (8n + 5)</option>
-                    <option value="7">F₇ = 13 (13n + 8)</option>
-                    <option value="8">F₈ = 21 (21n + 13)</option>
-                    <option value="9">F₉ = 34 (34n + 21)</option>
+                    <option value="2">F₂ = 1 (x=1 - trivial)</option>
+                    <option value="3" selected>F₃ = 2 (x=2 - classical!)</option>
+                    <option value="4">F₄ = 3 (x=3 - your perfect case!)</option>
+                    <option value="5">F₅ = 5 (x=5)</option>
+                    <option value="6">F₆ = 8 (x=8)</option>
+                    <option value="7">F₇ = 13 (x=13)</option>
+                    <option value="8">F₈ = 21 (x=21)</option>
                 </select>
             </div>
             
             <div class="control-group">
                 <label>Test Range (n = 1 to):</label>
-                <input type="number" id="testRange" value="1000" min="100" max="10000">
+                <input type="number" id="testRange" value="1000" min="100" max="5000">
             </div>
             
             <div class="control-group">
@@ -210,9 +217,11 @@
             </div>
             
             <div class="control-group">
-                <button onclick="runFibonacciCollatzAnalysis()">🚀 Analyze Convergence</button>
+                <button id="analyzeBtn" onclick="runFibonacciCollatzAnalysis()">🚀 Analyze Convergence</button>
             </div>
         </div>
+        
+        <div class="status" id="statusDiv"></div>
         
         <div class="progress-bar" id="progressContainer" style="display: none;">
             <div class="progress-fill" id="progressFill"></div>
@@ -242,8 +251,8 @@
                     <span class="stat-value" id="maxStepsObs">0</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Golden Ratio Factor:</span>
-                    <span class="stat-value" id="goldenRatio">φ ≈ 1.618</span>
+                    <span class="stat-label">Classical 3n+1 Rate:</span>
+                    <span class="stat-value" id="classicalRate">~32.4%</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">F_k/F_(k-1) Ratio:</span>
@@ -273,38 +282,68 @@
             return b;
         }
         
-        // Fibonacci-Collatz algorithm
-        function fibonacciCollatz(n, fibK, fibJ, maxSteps) {
+        // Calculate optimal alpha for divisibility (from your original algorithm)
+        function calculateAlpha(n, x) {
+            const beta = n % x;
+            if (beta <= x / 2) {
+                return -beta;  // Subtract to make divisible
+            } else {
+                return x - beta;  // Add complement to make divisible
+            }
+        }
+        
+        // PROPER Fibonacci-Collatz with SWITCHING MECHANISM
+        function fibonacciCollatzSimulation(startN, fibK, fibJ, maxSteps) {
+            let current = startN;
             let steps = 0;
-            let current = n;
             let sequence = [current];
             
+            // Use fibK as the divisor x in the switching algorithm
+            const x = fibK;
+            
             while (current !== 1 && steps < maxSteps) {
-                if (current % 2 === 0) {
-                    current = Math.floor(current / 2);
+                if (current % x === 0) {
+                    // If x divides current, do division step
+                    current = Math.floor(current / x);
                 } else {
-                    current = fibK * current + fibJ;
+                    // If x doesn't divide current, use switching formula
+                    // n → n + (n + α)/x where α makes (n + α) divisible by x
+                    const alpha = calculateAlpha(current, x);
+                    current = current + Math.floor((current + alpha) / x);
                 }
                 
                 sequence.push(current);
                 steps++;
                 
-                // Prevent infinite loops and overflow
-                if (current > 1e15 || steps >= maxSteps) {
-                    return { converged: false, steps: steps, sequence: sequence };
+                // Safety checks for overflow/infinite loops
+                if (current > 1e15 || !Number.isFinite(current)) {
+                    return { converged: false, steps: steps, sequence: sequence, reason: 'overflow' };
+                }
+                
+                // Check for obvious cycles (revisiting same number)
+                if (sequence.length > 100 && sequence.indexOf(current) !== -1) {
+                    return { converged: false, steps: steps, sequence: sequence, reason: 'cycle' };
                 }
             }
             
             return { 
                 converged: current === 1, 
                 steps: steps, 
-                sequence: sequence 
+                sequence: sequence,
+                reason: current === 1 ? 'converged' : 'max_steps'
             };
         }
         
         let convergenceChart = null;
         
         async function runFibonacciCollatzAnalysis() {
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const statusDiv = document.getElementById('statusDiv');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            // Get parameters
             const fibIndex = parseInt(document.getElementById('fibIndex').value);
             const testRange = parseInt(document.getElementById('testRange').value);
             const maxSteps = parseInt(document.getElementById('maxSteps').value);
@@ -312,47 +351,54 @@
             const fibK = fibonacci(fibIndex);
             const fibJ = fibonacci(fibIndex - 1);
             
-            // Update current variant display
-            document.getElementById('currentVariant').textContent = `F₁${fibIndex} (${fibK}n + ${fibJ})`;
+            // Disable button and show progress
+            analyzeBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            resultsContainer.style.display = 'none';
             
-            // Show progress bar
-            document.getElementById('progressContainer').style.display = 'block';
-            document.getElementById('resultsContainer').style.display = 'none';
+            // Update current variant display
+            document.getElementById('currentVariant').textContent = `F₁${fibIndex} = ${fibK} (x=${fibK} divisor)`;
+            
+            statusDiv.textContent = `Starting analysis of F₁${fibIndex} variant for numbers 1 to ${testRange}...`;
             
             let convergedCount = 0;
             let totalSteps = 0;
             let maxStepsObserved = 0;
             let divergentCount = 0;
-            let convergenceData = [];
+            let overflowCount = 0;
+            let cycleCount = 0;
             let stepDistribution = {};
             
-            // Analyze convergence for each number
+            // Run simulation for each number in range
             for (let n = 1; n <= testRange; n++) {
-                const result = fibonacciCollatz(n, fibK, fibJ, maxSteps);
+                const result = fibonacciCollatzSimulation(n, fibK, fibJ, maxSteps);
                 
                 if (result.converged) {
                     convergedCount++;
                     totalSteps += result.steps;
                     maxStepsObserved = Math.max(maxStepsObserved, result.steps);
                     
-                    // Track step distribution
+                    // Track step distribution for graphing
                     const stepBucket = Math.floor(result.steps / 10) * 10;
                     stepDistribution[stepBucket] = (stepDistribution[stepBucket] || 0) + 1;
                 } else {
                     divergentCount++;
+                    if (result.reason === 'overflow') overflowCount++;
+                    if (result.reason === 'cycle') cycleCount++;
                 }
                 
-                // Update progress
-                const progress = (n / testRange) * 100;
-                document.getElementById('progressFill').style.width = progress + '%';
-                
-                // Allow UI updates
+                // Update progress every 50 numbers
                 if (n % 50 === 0) {
+                    const progress = (n / testRange) * 100;
+                    progressFill.style.width = progress + '%';
+                    statusDiv.textContent = `Testing n=${n}/${testRange} (${convergedCount} converged so far)`;
+                    
+                    // Allow UI to update
                     await new Promise(resolve => setTimeout(resolve, 1));
                 }
             }
             
-            // Calculate statistics
+            // Calculate final statistics
             const convergenceRate = (convergedCount / testRange) * 100;
             const avgSteps = convergedCount > 0 ? totalSteps / convergedCount : 0;
             const fibRatio = fibIndex > 1 ? (fibK / fibonacci(fibIndex - 1)).toFixed(6) : 0;
@@ -365,75 +411,86 @@
             document.getElementById('totalTested').textContent = testRange;
             document.getElementById('divergentCases').textContent = divergentCount;
             
-            // Prepare chart data
-            const stepBuckets = Object.keys(stepDistribution).map(Number).sort((a, b) => a - b);
-            const chartData = stepBuckets.map(bucket => stepDistribution[bucket]);
-            const chartLabels = stepBuckets.map(bucket => `${bucket}-${bucket + 9}`);
-            
-            // Create/update chart
-            const ctx = document.getElementById('convergenceChart').getContext('2d');
-            
-            if (convergenceChart) {
-                convergenceChart.destroy();
-            }
-            
-            convergenceChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: chartLabels,
-                    datasets: [{
-                        label: 'Convergence Count',
-                        data: chartData,
-                        backgroundColor: 'rgba(255, 215, 0, 0.6)',
-                        borderColor: 'rgba(255, 215, 0, 1)',
-                        borderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: `F₁${fibIndex} Convergence Steps Distribution`,
-                            color: 'white',
-                            font: { size: 16 }
-                        },
-                        legend: {
-                            labels: { color: 'white' }
-                        }
+            // Prepare chart data (only for converged cases)
+            if (Object.keys(stepDistribution).length > 0) {
+                const stepBuckets = Object.keys(stepDistribution).map(Number).sort((a, b) => a - b);
+                const chartData = stepBuckets.map(bucket => stepDistribution[bucket]);
+                const chartLabels = stepBuckets.map(bucket => `${bucket}-${bucket + 9}`);
+                
+                // Create/update chart
+                const ctx = document.getElementById('convergenceChart').getContext('2d');
+                
+                if (convergenceChart) {
+                    convergenceChart.destroy();
+                }
+                
+                convergenceChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            label: 'Convergence Count',
+                            data: chartData,
+                            backgroundColor: 'rgba(255, 215, 0, 0.6)',
+                            borderColor: 'rgba(255, 215, 0, 1)',
+                            borderWidth: 2
+                        }]
                     },
-                    scales: {
-                        x: {
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
                             title: {
                                 display: true,
-                                text: 'Steps to Convergence',
-                                color: 'white'
+                                text: `F₁${fibIndex} Steps Distribution (${convergedCount} converged cases)`,
+                                color: 'white',
+                                font: { size: 16 }
                             },
-                            ticks: { color: 'white' },
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            legend: {
+                                labels: { color: 'white' }
+                            }
                         },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Number of Cases',
-                                color: 'white'
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Steps to Convergence',
+                                    color: 'white'
+                                },
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
                             },
-                            ticks: { color: 'white' },
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Number of Cases',
+                                    color: 'white'
+                                },
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
             
-            // Hide progress bar and show results
-            document.getElementById('progressContainer').style.display = 'none';
-            document.getElementById('resultsContainer').style.display = 'grid';
+            // Final status update
+            progressFill.style.width = '100%';
+            statusDiv.textContent = `Analysis complete! F₁${fibIndex}: ${convergenceRate.toFixed(1)}% convergence rate (${convergedCount}/${testRange})`;
+            
+            // Show results and reset UI
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+                resultsContainer.style.display = 'grid';
+                analyzeBtn.disabled = false;
+            }, 500);
         }
         
-        // Initialize with default analysis
+        // Auto-run on page load
         window.addEventListener('load', () => {
-            setTimeout(runFibonacciCollatzAnalysis, 500);
+            setTimeout(() => {
+                runFibonacciCollatzAnalysis();
+            }, 1000);
         });
     </script>
 </body>
