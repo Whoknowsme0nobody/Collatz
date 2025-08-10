@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Generalized Collatz Analyzer</title>
+<style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #f0f2f5;
+        margin: 0;
+        padding: 20px;
+        color: #333;
+    }
+    .container {
+        max-width: 1000px;
+        margin: auto;
+        background: #fff;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1 {
+        text-align: center;
+        color: #2c3e50;
+    }
+    button {
+        background: linear-gradient(to right, #3498db, #2c3e50);
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 50px;
+        font-size: 16px;
+        cursor: pointer;
+        display: block;
+        margin: 20px auto;
+    }
+    button:disabled {
+        background: #bbb;
+        cursor: not-allowed;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #34495e;
+        color: white;
+    }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    tr:hover { background-color: #e8f4fe; }
+    /* Stage colors */
+    .stage1 { background-color: #d4edda; color: #155724; font-weight: bold; }
+    .stage2 { background-color: #fff3cd; color: #856404; font-weight: bold; }
+    .stage3 { background-color: #d1ecf1; color: #0c5460; font-weight: bold; }
+    .stage4 { background-color: #e0ccff; color: #3d0066; font-weight: bold; }
+    .fail   { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Adaptive Generalized Collatz Analyzer</h1>
+    <button id="runBtn">Run Experiment (n=1..1000, x=0..100)</button>
+    <div id="status"></div>
+
+    <table id="resultsTable">
+        <thead>
+            <tr>
+                <th>x</th>
+                <th>Convergence Rate (%)</th>
+                <th>Stage Used</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+const runBtn = document.getElementById('runBtn');
+const statusDiv = document.getElementById('status');
+const tableBody = document.querySelector('#resultsTable tbody');
+
+function calculateAlpha(n, x, stage) {
+    const beta = n % x;
+    switch(stage) {
+        case 1:
+            return (beta <= x/2) ? -beta : (x - beta);
+        case 2:
+            return (beta <= x/2) ? (x - beta) : -beta;
+        case 3:
+            return -beta;
+        case 4:
+            return x - beta;
+        default:
+            return 0;
+    }
+}
+
+function getNextValue(n, x, stage) {
+    if (x === 0) return { value: NaN, error: "Division by zero" };
+    if (n % x === 0) return { value: n / x };
+    const alpha = calculateAlpha(n, x, stage);
+    return { value: n + (n + alpha) / x };
+}
+
+function runSequence(n, x, stage) {
+    let current = n;
+    let seen = new Set();
+    const maxIterations = 10000;
+    for (let i = 0; i < maxIterations; i++) {
+        if (current === 1) return true;
+        if (!isFinite(current) || seen.has(current)) return false;
+        seen.add(current);
+        const next = getNextValue(current, x, stage);
+        if (next.error) return false;
+        current = next.value;
+    }
+    return false;
+}
+
+function runTestForX(x) {
+    let convergedCount = 0;
+    let stageUsage = null;
+    for (let n = 1; n <= 1000; n++) {
+        let converged = false;
+        for (let stage = 1; stage <= 4; stage++) {
+            if (runSequence(n, x, stage)) {
+                converged = true;
+                if (!stageUsage || stage > stageUsage) {
+                    // track highest stage needed for ANY n
+                    stageUsage = Math.max(stageUsage || 0, stage);
+                }
+                break;
+            }
+        }
+        if (converged) convergedCount++;
+    }
+    const rate = (convergedCount / 1000 * 100).toFixed(3);
+    return { x, rate, stageUsage: stageUsage || 0 };
+}
+
+async function runExperiment() {
+    runBtn.disabled = true;
+    statusDiv.textContent = "Running tests...";
+    tableBody.innerHTML = "";
+    for (let x = 0; x <= 100; x++) {
+        const res = runTestForX(x);
+        const row = document.createElement('tr');
+        const xCell = document.createElement('td'); xCell.textContent = x;
+        const rateCell = document.createElement('td'); rateCell.textContent = res.rate;
+        const stageCell = document.createElement('td');
+        if (x === 0) {
+            stageCell.textContent = "Div 0 ❌";
+            row.classList.add('fail');
+        } else if (res.stageUsage === 0) {
+            stageCell.textContent = "Fail ❌";
+            row.classList.add('fail');
+        } else {
+            stageCell.textContent = `Stage ${res.stageUsage}`;
+            row.classList.add(`stage${res.stageUsage}`);
+        }
+        row.appendChild(xCell);
+        row.appendChild(rateCell);
+        row.appendChild(stageCell);
+        tableBody.appendChild(row);
+        await new Promise(r => setTimeout(r, 1)); // allow UI refresh
+    }
+    statusDiv.textContent = "Done!";
+    runBtn.disabled = false;
+}
+
+runBtn.addEventListener('click', runExperiment);
+</script>
+
+</body>
+</html>
