@@ -1,330 +1,183 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Alpha Adaptation Summary</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      padding: 20px; 
-      max-width: 1200px;
-      margin: auto;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Generalized Collatz Analyzer</title>
+<style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #f0f2f5;
+        margin: 0;
+        padding: 20px;
+        color: #333;
     }
-    .chart-container {
-      position: relative;
-      height: 400px;
-      margin-bottom: 40px;
+    .container {
+        max-width: 1000px;
+        margin: auto;
+        background: #fff;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
-    pre {
-      background: #f4f4f4;
-      padding: 15px;
-      border-radius: 5px;
-      overflow: auto;
-      max-height: 300px;
+    h1 {
+        text-align: center;
+        color: #2c3e50;
     }
     button {
-      padding: 10px 20px;
-      font-size: 16px;
-      margin-bottom: 20px;
+        background: linear-gradient(to right, #3498db, #2c3e50);
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 50px;
+        font-size: 16px;
+        cursor: pointer;
+        display: block;
+        margin: 20px auto;
+    }
+    button:disabled {
+        background: #bbb;
+        cursor: not-allowed;
     }
     table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
-    table, th, td {
-      border: 1px solid #ccc;
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
     }
     th, td {
-      padding: 8px;
-      text-align: center;
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
     }
     th {
-      background-color: #eee;
+        background-color: #34495e;
+        color: white;
     }
-    .section {
-      margin-bottom: 40px;
-    }
-  </style>
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    tr:hover { background-color: #e8f4fe; }
+    /* Stage colors */
+    .stage1 { background-color: #d4edda; color: #155724; font-weight: bold; }
+    .stage2 { background-color: #fff3cd; color: #856404; font-weight: bold; }
+    .stage3 { background-color: #d1ecf1; color: #0c5460; font-weight: bold; }
+    .stage4 { background-color: #e0ccff; color: #3d0066; font-weight: bold; }
+    .fail   { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+</style>
 </head>
 <body>
-  <h1>Alpha Adaptation Research Summary</h1>
-  <button onclick="run()">Run Simulation</button>
 
-  <!-- Overall Success Rate Chart -->
-  <div class="section">
-    <h2>Stage Success Rates</h2>
-    <div class="chart-container">
-      <canvas id="successChart"></canvas>
-    </div>
-  </div>
+<div class="container">
+    <h1>Adaptive Generalized Collatz Analyzer</h1>
+    <button id="runBtn">Run Experiment (n=1..1000, x=0..100)</button>
+    <div id="status"></div>
 
-  <!-- Average Iterations Chart -->
-  <div class="section">
-    <h2>Average Iterations per Stage</h2>
-    <div class="chart-container">
-      <canvas id="iterChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Per-x Success Trends -->
-  <div class="section">
-    <h2>Success Count by Divisor (x)</h2>
-    <div class="chart-container">
-      <canvas id="xTrendChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Summary Output -->
-  <div class="section">
-    <h2>Summary Output</h2>
-    <pre id="output">Click "Run Simulation" to start...</pre>
-  </div>
-
-  <!-- Per-x Details Table (Optional, can be toggled) -->
-  <div class="section">
-    <h2>Detailed Stats per x</h2>
-    <p><small>After simulation, scroll down to see detailed stats for each x.</small></p>
-    <div id="xDetails" style="display: none;">
-      <table id="xTable">
+    <table id="resultsTable">
         <thead>
-          <tr>
-            <th>x</th>
-            <th>Total Cases</th>
-            <th>Stage 1</th>
-            <th>Stage 2</th>
-            <th>Stage 3</th>
-            <th>Stage 4</th>
-            <th>Fail</th>
-            <th>Best Stage</th>
-          </tr>
+            <tr>
+                <th>x</th>
+                <th>Convergence Rate (%)</th>
+                <th>Stage Used</th>
+            </tr>
         </thead>
         <tbody></tbody>
-      </table>
-    </div>
+    </table>
+</div>
 
-  <script>
-    let successChart = null;
-    let iterChart = null;
-    let xTrendChart = null;
+<script>
+const runBtn = document.getElementById('runBtn');
+const statusDiv = document.getElementById('status');
+const tableBody = document.querySelector('#resultsTable tbody');
 
-    function run() {
-      const maxN = 10000;
-      const maxX = 500;
-      const maxIter = 10000;
-
-      let stageStats = [
-        { name: "Stage 1", count: 0, iterations: [], color: "rgba(75, 192, 75, 0.7)" },
-        { name: "Stage 2", count: 0, iterations: [], color: "rgba(255, 205, 86, 0.7)" },
-        { name: "Stage 3", count: 0, iterations: [], color: "rgba(255, 159, 64, 0.7)" },
-        { name: "Stage 4", count: 0, iterations: [], color: "rgba(54, 162, 235, 0.7)" }
-      ];
-      let failCount = 0;
-      let totalCases = 0;
-
-      // Track stats per x
-      let xStats = Array(maxX + 1).fill().map(() => ({
-        total: 0,
-        successes: [0, 0, 0, 0],
-        failures: 0
-      }));
-
-      function tryStage(n, x, stage) {
-        let iter = 0;
-        let visited = new Set();
-        let beta = n % x;
-        let alpha;
-        let currentN = n;
-
-        while (iter < maxIter) {
-          if (stage === 1) {
-            alpha = (beta <= x / 2) ? -beta : x - beta;
-          } else if (stage === 2) {
-            alpha = (beta <= x / 2) ? x - beta : -beta;
-          } else if (stage === 3) {
-            alpha = -beta;
-          } else if (stage === 4) {
-            alpha = x - beta;
-          }
-
-          let newN = currentN + alpha;
-          if (newN % x === 0) return iter + 1;
-
-          let key = `${currentN},${beta}`;
-          if (visited.has(key)) return null;
-          visited.add(key);
-
-          currentN = newN;
-          beta = currentN % x;
-          iter++;
-        }
-        return null;
-      }
-
-      // Main loop
-      for (let n = 1; n <= maxN; n++) {
-        for (let x = 1; x <= maxX; x++) {
-          totalCases++;
-          xStats[x].total++;
-
-          let solved = false;
-          for (let stage = 1; stage <= 4; stage++) {
-            let res = tryStage(n, x, stage);
-            if (res !== null) {
-              stageStats[stage - 1].count++;
-              stageStats[stage - 1].iterations.push(res);
-              xStats[x].successes[stage - 1]++;
-              solved = true;
-              break;
-            }
-          }
-          if (!solved) {
-            failCount++;
-            xStats[x].failures++;
-          }
-        }
-      }
-
-      // === Generate Charts ===
-
-      // Chart 1: Success Rate Bar Chart
-      const successCtx = document.getElementById('successChart').getContext('2d');
-      const successData = {
-        labels: stageStats.map(s => s.name),
-        datasets: [{
-          label: 'Success Count',
-          data: stageStats.map(s => s.count),
-          backgroundColor: stageStats.map(s => s.color),
-          borderColor: stageStats.map(s => s.color.replace('0.7', '1')),
-          borderWidth: 1
-        }]
-      };
-
-      if (successChart) successChart.destroy();
-      successChart = new Chart(successCtx, {
-        type: 'bar',
-        data: successData,
-        options: {
-          responsive: true,
-          scales: {
-            y: { beginAtZero: true, title: { display: true, text: 'Number of Cases Solved' } }
-          },
-          plugins: {
-            tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y} cases` } }
-          }
-        }
-      });
-
-      // Chart 2: Average Iterations
-      const iterCtx = document.getElementById('iterChart').getContext('2d');
-      const avgIters = stageStats.map(s => 
-        s.iterations.length > 0 
-          ? (s.iterations.reduce((a,b) => a+b, 0) / s.iterations.length).toFixed(2)
-          : 0
-      );
-
-      const iterData = {
-        labels: stageStats.map(s => s.name),
-        datasets: [{
-          label: 'Avg Iterations',
-          data: avgIters,
-          backgroundColor: stageStats.map(s => s.color),
-          borderColor: stageStats.map(s => s.color.replace('0.7', '1')),
-          borderWidth: 1
-        }]
-      };
-
-      if (iterChart) iterChart.destroy();
-      iterChart = new Chart(iterCtx, {
-        type: 'bar',
-        data: iterData,
-        options: {
-          responsive: true,
-          scales: { y: { beginAtZero: true } }
-        }
-      });
-
-      // Chart 3: Success Trends by x
-      const xLabels = Array.from({length: maxX}, (_, i) => i + 1);
-      const xTrendCtx = document.getElementById('xTrendChart').getContext('2d');
-
-      const xTrendData = {
-        labels: xLabels,
-        datasets: stageStats.map((s, idx) => ({
-          label: s.name,
-          data: xLabels.map(x => xStats[x].successes[idx]),
-          borderColor: s.color.replace('0.7', '1'),
-          backgroundColor: s.color,
-          borderWidth: 1,
-          pointRadius: 0,
-          tension: 0.1
-        }))
-      };
-
-      if (xTrendChart) xTrendChart.destroy();
-      xTrendChart = new Chart(xTrendCtx, {
-        type: 'line',
-        data: xTrendData,
-        options: {
-          responsive: true,
-          interaction: { mode: 'index', intersect: false },
-          scales: {
-            y: { beginAtZero: true, title: { display: true, text: 'Success Count for x' } },
-            x: { title: { display: true, text: 'Divisor (x)' } }
-          },
-          plugins: {
-            tooltip: {
-              callbacks: {
-                title: (ctx) => `x = ${ctx[0].label}`,
-                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} successes`
-              }
-            }
-          }
-        }
-      });
-
-      // === Summary Output ===
-      let out = "=== ALPHA ADAPTATION SIMULATION RESULTS ===\n\n";
-      stageStats.forEach(stat => {
-        let avgIter = stat.iterations.reduce((a, b) => a + b, 0) / stat.iterations.length || 0;
-        let maxIterCount = Math.max(...stat.iterations, 0);
-        out += `${stat.name}: ${(stat.count / totalCases * 100).toFixed(2)}% `
-             + `(${stat.count} cases), Avg Iter: ${avgIter.toFixed(2)}, `
-             + `Max Iter: ${maxIterCount}\n`;
-      });
-      out += `Fail: ${(failCount / totalCases * 100).toFixed(2)}% (${failCount} cases)\n`;
-      out += `Total cases: ${totalCases}\n\n`;
-      out += `Tested n ∈ [1, ${maxN}], x ∈ [1, ${maxX}]`;
-
-      document.getElementById("output").textContent = out;
-
-      // === Per-x Detailed Table ===
-      const tableBody = document.querySelector("#xTable tbody");
-      tableBody.innerHTML = "";
-
-      for (let x = 1; x <= maxX; x++) {
-        const row = xStats[x];
-        const successes = row.successes;
-        const bestStage = [1,2,3,4].reduce((a, b) => 
-          successes[a-1] > successes[b-1] ? a : b, 1
-        );
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${x}</td>
-          <td>${row.total}</td>
-          <td>${successes[0]}</td>
-          <td>${successes[1]}</td>
-          <td>${successes[2]}</td>
-          <td>${successes[3]}</td>
-          <td>${row.failures}</td>
-          <td>Stage ${bestStage}</td>
-        `;
-        tableBody.appendChild(tr);
-      }
-
-      document.getElementById("xDetails").style.display = "block";
+function calculateAlpha(n, x, stage) {
+    const beta = n % x;
+    switch(stage) {
+        case 1:
+            return (beta <= x/2) ? -beta : (x - beta);
+        case 2:
+            return (beta <= x/2) ? (x - beta) : -beta;
+        case 3:
+            return -beta;
+        case 4:
+            return x - beta;
+        default:
+            return 0;
     }
-  </script>
+}
+
+function getNextValue(n, x, stage) {
+    if (x === 0) return { value: NaN, error: "Division by zero" };
+    if (n % x === 0) return { value: n / x };
+    const alpha = calculateAlpha(n, x, stage);
+    return { value: n + (n + alpha) / x };
+}
+
+function runSequence(n, x, stage) {
+    let current = n;
+    let seen = new Set();
+    const maxIterations = 10000;
+    for (let i = 0; i < maxIterations; i++) {
+        if (current === 1) return true;
+        if (!isFinite(current) || seen.has(current)) return false;
+        seen.add(current);
+        const next = getNextValue(current, x, stage);
+        if (next.error) return false;
+        current = next.value;
+    }
+    return false;
+}
+
+function runTestForX(x) {
+    let convergedCount = 0;
+    let stageUsage = null;
+    for (let n = 1; n <= 1000; n++) {
+        let converged = false;
+        for (let stage = 1; stage <= 4; stage++) {
+            if (runSequence(n, x, stage)) {
+                converged = true;
+                if (!stageUsage || stage > stageUsage) {
+                    // track highest stage needed for ANY n
+                    stageUsage = Math.max(stageUsage || 0, stage);
+                }
+                break;
+            }
+        }
+        if (converged) convergedCount++;
+    }
+    const rate = (convergedCount / 1000 * 100).toFixed(3);
+    return { x, rate, stageUsage: stageUsage || 0 };
+}
+
+async function runExperiment() {
+    runBtn.disabled = true;
+    statusDiv.textContent = "Running tests...";
+    tableBody.innerHTML = "";
+    for (let x = 0; x <= 100; x++) {
+        const res = runTestForX(x);
+        const row = document.createElement('tr');
+        const xCell = document.createElement('td'); xCell.textContent = x;
+        const rateCell = document.createElement('td'); rateCell.textContent = res.rate;
+        const stageCell = document.createElement('td');
+        if (x === 0) {
+            stageCell.textContent = "Div 0 ❌";
+            row.classList.add('fail');
+        } else if (res.stageUsage === 0) {
+            stageCell.textContent = "Fail ❌";
+            row.classList.add('fail');
+        } else {
+            stageCell.textContent = `Stage ${res.stageUsage}`;
+            row.classList.add(`stage${res.stageUsage}`);
+        }
+        row.appendChild(xCell);
+        row.appendChild(rateCell);
+        row.appendChild(stageCell);
+        tableBody.appendChild(row);
+        await new Promise(r => setTimeout(r, 1)); // allow UI refresh
+    }
+    statusDiv.textContent = "Done!";
+    runBtn.disabled = false;
+}
+
+runBtn.addEventListener('click', runExperiment);
+</script>
+
 </body>
 </html>
