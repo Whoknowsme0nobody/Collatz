@@ -1,135 +1,102 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Adaptive Alpha Convergence</title>
+<title>Alpha Adaptation Summary</title>
 <style>
-  body { font-family: Arial, sans-serif; }
-  table { border-collapse: collapse; margin-top: 10px; }
-  td, th { border: 1px solid #ccc; padding: 4px; text-align: center; }
-  .stage1 { background-color: #90ee90; } /* green */
-  .stage2 { background-color: #ffff99; } /* yellow */
-  .stage3 { background-color: #ffcc99; } /* orange */
-  .stage4 { background-color: #add8e6; } /* blue */
-  .fail   { background-color: #ff9999; } /* red */
-  #progress { width: 100%; background: #eee; border: 1px solid #ccc; height: 20px; }
-  #bar { height: 100%; background: #4caf50; width: 0%; }
+body { font-family: Arial, sans-serif; padding: 20px; }
+pre { background: #f4f4f4; padding: 10px; }
 </style>
 </head>
 <body>
-
-<h1>Adaptive Alpha Convergence</h1>
-<div id="progress"><div id="bar"></div></div>
-<table id="results"></table>
+<h1>Alpha Adaptation Research Summary</h1>
+<button onclick="run()">Run Simulation</button>
+<pre id="output">Click "Run Simulation" to start...</pre>
 
 <script>
-const maxN = 10000;
-const maxX = 500;
-const maxIter = 1000;
-const chunkSize = 10; // process n's per chunk
-
-function tryConverge(n, x, stage) {
-  let beta = n % x;
-  let alpha;
-
-  switch(stage) {
-    case 1:
-      alpha = (beta <= x / 2) ? -beta : x - beta;
-      break;
-    case 2:
-      alpha = (beta <= x / 2) ? x - beta : -beta;
-      break;
-    case 3:
-      alpha = -beta;
-      break;
-    case 4:
-      alpha = x - beta;
-      break;
-  }
-
-  let seen = new Set();
-  let value = n;
-  for (let i = 0; i < maxIter; i++) {
-    beta = value % x;
-    if (beta === 0) return true; // converged
-    if (seen.has(value)) return false; // cycle
-    seen.add(value);
-    switch(stage) {
-      case 1:
-        alpha = (beta <= x / 2) ? -beta : x - beta;
-        break;
-      case 2:
-        alpha = (beta <= x / 2) ? x - beta : -beta;
-        break;
-      case 3:
-        alpha = -beta;
-        break;
-      case 4:
-        alpha = x - beta;
-        break;
-    }
-    value += alpha;
-  }
-  return false; // max iterations reached
-}
-
-function findStage(n, x) {
-  if (x === 0) return null; // skip invalid division
-  for (let stage = 1; stage <= 4; stage++) {
-    if (tryConverge(n, x, stage)) return stage;
-  }
-  return null; // all failed
-}
-
 function run() {
-  const table = document.getElementById('results');
-  const header = document.createElement('tr');
-  header.appendChild(document.createElement('th')).textContent = 'n/x';
-  for (let x = 0; x <= maxX; x++) {
-    const th = document.createElement('th');
-    th.textContent = x;
-    header.appendChild(th);
-  }
-  table.appendChild(header);
+    const maxN = 10000;
+    const maxX = 500;
+    const maxIter = 10000;
 
-  let currentN = 1;
+    let stageStats = [
+        { name: "Stage 1", count: 0, iterations: [], color: "green" },
+        { name: "Stage 2", count: 0, iterations: [], color: "yellow" },
+        { name: "Stage 3", count: 0, iterations: [], color: "orange" },
+        { name: "Stage 4", count: 0, iterations: [], color: "blue" }
+    ];
+    let failCount = 0;
+    let totalCases = 0;
+    let failList = [];
 
-  function processChunk() {
-    for (let c = 0; c < chunkSize && currentN <= maxN; c++, currentN++) {
-      const row = document.createElement('tr');
-      const th = document.createElement('th');
-      th.textContent = currentN;
-      row.appendChild(th);
+    function tryStage(n, x, stage) {
+        let iter = 0;
+        let visited = new Set();
+        let beta = n % x;
+        let alpha;
 
-      for (let x = 0; x <= maxX; x++) {
-        const td = document.createElement('td');
-        const stage = findStage(currentN, x);
-        if (stage === 1) td.className = 'stage1';
-        else if (stage === 2) td.className = 'stage2';
-        else if (stage === 3) td.className = 'stage3';
-        else if (stage === 4) td.className = 'stage4';
-        else td.className = 'fail';
-        td.textContent = stage ? stage : '✖';
-        row.appendChild(td);
-      }
+        while (iter < maxIter) {
+            // Choose alpha based on stage rules
+            if (stage === 1) {
+                alpha = (beta <= x / 2) ? -beta : x - beta;
+            } else if (stage === 2) {
+                alpha = (beta <= x / 2) ? x - beta : -beta;
+            } else if (stage === 3) {
+                alpha = -beta;
+            } else if (stage === 4) {
+                alpha = x - beta;
+            }
 
-      table.appendChild(row);
+            let newN = n + alpha;
+            if (newN % x === 0) return iter + 1;
+
+            // Detect cycles
+            let key = `${n},${beta}`;
+            if (visited.has(key)) return null;
+            visited.add(key);
+
+            // Update for next loop
+            n = newN;
+            beta = n % x;
+            iter++;
+        }
+        return null;
     }
 
-    // update progress bar
-    const percent = Math.floor((currentN / maxN) * 100);
-    document.getElementById('bar').style.width = percent + '%';
-
-    if (currentN <= maxN) {
-      setTimeout(processChunk, 0);
+    for (let n = 1; n <= maxN; n++) {
+        for (let x = 1; x <= maxX; x++) {
+            totalCases++;
+            let solved = false;
+            for (let stage = 1; stage <= 4; stage++) {
+                let res = tryStage(n, x, stage);
+                if (res !== null) {
+                    stageStats[stage - 1].count++;
+                    stageStats[stage - 1].iterations.push(res);
+                    solved = true;
+                    break;
+                }
+            }
+            if (!solved) {
+                failCount++;
+                failList.push({ n, x });
+            }
+        }
     }
-  }
 
-  processChunk();
+    // Prepare output
+    let out = "";
+    stageStats.forEach(stat => {
+        let avgIter = stat.iterations.reduce((a, b) => a + b, 0) / stat.iterations.length || 0;
+        let maxIterCount = Math.max(...stat.iterations, 0);
+        out += `${stat.name}: ${(stat.count / totalCases * 100).toFixed(2)}% `
+             + `(${stat.count} cases), Avg Iter: ${avgIter.toFixed(2)}, `
+             + `Max Iter: ${maxIterCount}\n`;
+    });
+    out += `Fail: ${(failCount / totalCases * 100).toFixed(2)}% (${failCount} cases)\n`;
+    out += `Total cases: ${totalCases}\n`;
+
+    document.getElementById("output").textContent = out;
+    console.log("Failures:", failList);
 }
-
-run();
 </script>
-
 </body>
 </html>
