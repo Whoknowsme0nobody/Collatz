@@ -1,182 +1,134 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Adaptive Generalized Collatz Analyzer</title>
+<title>Adaptive Alpha Convergence</title>
 <style>
-    body {
-        font-family: 'Segoe UI', sans-serif;
-        background-color: #f0f2f5;
-        margin: 0;
-        padding: 20px;
-        color: #333;
-    }
-    .container {
-        max-width: 1000px;
-        margin: auto;
-        background: #fff;
-        padding: 25px;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    h1 {
-        text-align: center;
-        color: #2c3e50;
-    }
-    button {
-        background: linear-gradient(to right, #3498db, #2c3e50);
-        color: white;
-        border: none;
-        padding: 12px 25px;
-        border-radius: 50px;
-        font-size: 16px;
-        cursor: pointer;
-        display: block;
-        margin: 20px auto;
-    }
-    button:disabled {
-        background: #bbb;
-        cursor: not-allowed;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 15px;
-    }
-    th, td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: center;
-    }
-    th {
-        background-color: #34495e;
-        color: white;
-    }
-    tr:nth-child(even) { background-color: #f9f9f9; }
-    tr:hover { background-color: #e8f4fe; }
-    /* Stage colors */
-    .stage1 { background-color: #d4edda; color: #155724; font-weight: bold; }
-    .stage2 { background-color: #fff3cd; color: #856404; font-weight: bold; }
-    .stage3 { background-color: #d1ecf1; color: #0c5460; font-weight: bold; }
-    .stage4 { background-color: #e0ccff; color: #3d0066; font-weight: bold; }
-    .fail   { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+  body { font-family: Arial, sans-serif; }
+  table { border-collapse: collapse; margin-top: 10px; }
+  td, th { border: 1px solid #ccc; padding: 4px; text-align: center; }
+  .stage1 { background-color: #90ee90; } /* green */
+  .stage2 { background-color: #ffff99; } /* yellow */
+  .stage3 { background-color: #ffcc99; } /* orange */
+  .stage4 { background-color: #add8e6; } /* blue */
+  .fail   { background-color: #ff9999; } /* red */
+  #progress { width: 100%; background: #eee; border: 1px solid #ccc; height: 20px; }
+  #bar { height: 100%; background: #4caf50; width: 0%; }
 </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>Adaptive Generalized Collatz Analyzer</h1>
-    <button id="runBtn">Run Experiment (n=1..1000, x=0..100)</button>
-    <div id="status"></div>
-
-    <table id="resultsTable">
-        <thead>
-            <tr>
-                <th>x</th>
-                <th>Convergence Rate (%)</th>
-                <th>Stage Used</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-</div>
+<h1>Adaptive Alpha Convergence</h1>
+<div id="progress"><div id="bar"></div></div>
+<table id="results"></table>
 
 <script>
-const runBtn = document.getElementById('runBtn');
-const statusDiv = document.getElementById('status');
-const tableBody = document.querySelector('#resultsTable tbody');
+const maxN = 10000;
+const maxX = 500;
+const maxIter = 1000;
+const chunkSize = 10; // process n's per chunk
 
-function calculateAlpha(n, x, stage) {
-    const beta = n % x;
+function tryConverge(n, x, stage) {
+  let beta = n % x;
+  let alpha;
+
+  switch(stage) {
+    case 1:
+      alpha = (beta <= x / 2) ? -beta : x - beta;
+      break;
+    case 2:
+      alpha = (beta <= x / 2) ? x - beta : -beta;
+      break;
+    case 3:
+      alpha = -beta;
+      break;
+    case 4:
+      alpha = x - beta;
+      break;
+  }
+
+  let seen = new Set();
+  let value = n;
+  for (let i = 0; i < maxIter; i++) {
+    beta = value % x;
+    if (beta === 0) return true; // converged
+    if (seen.has(value)) return false; // cycle
+    seen.add(value);
     switch(stage) {
-        case 1:
-            return (beta <= x/2) ? -beta : (x - beta);
-        case 2:
-            return (beta <= x/2) ? (x - beta) : -beta;
-        case 3:
-            return -beta;
-        case 4:
-            return x - beta;
-        default:
-            return 0;
+      case 1:
+        alpha = (beta <= x / 2) ? -beta : x - beta;
+        break;
+      case 2:
+        alpha = (beta <= x / 2) ? x - beta : -beta;
+        break;
+      case 3:
+        alpha = -beta;
+        break;
+      case 4:
+        alpha = x - beta;
+        break;
     }
+    value += alpha;
+  }
+  return false; // max iterations reached
 }
 
-function getNextValue(n, x, stage) {
-    if (x === 0) return { value: NaN, error: "Division by zero" };
-    if (n % x === 0) return { value: n / x };
-    const alpha = calculateAlpha(n, x, stage);
-    return { value: n + (n + alpha) / x };
+function findStage(n, x) {
+  if (x === 0) return null; // skip invalid division
+  for (let stage = 1; stage <= 4; stage++) {
+    if (tryConverge(n, x, stage)) return stage;
+  }
+  return null; // all failed
 }
 
-function runSequence(n, x, stage) {
-    let current = n;
-    let seen = new Set();
-    const maxIterations = 10000;
-    for (let i = 0; i < maxIterations; i++) {
-        if (current === 1) return true;
-        if (!isFinite(current) || seen.has(current)) return false;
-        seen.add(current);
-        const next = getNextValue(current, x, stage);
-        if (next.error) return false;
-        current = next.value;
+function run() {
+  const table = document.getElementById('results');
+  const header = document.createElement('tr');
+  header.appendChild(document.createElement('th')).textContent = 'n/x';
+  for (let x = 0; x <= maxX; x++) {
+    const th = document.createElement('th');
+    th.textContent = x;
+    header.appendChild(th);
+  }
+  table.appendChild(header);
+
+  let currentN = 1;
+
+  function processChunk() {
+    for (let c = 0; c < chunkSize && currentN <= maxN; c++, currentN++) {
+      const row = document.createElement('tr');
+      const th = document.createElement('th');
+      th.textContent = currentN;
+      row.appendChild(th);
+
+      for (let x = 0; x <= maxX; x++) {
+        const td = document.createElement('td');
+        const stage = findStage(currentN, x);
+        if (stage === 1) td.className = 'stage1';
+        else if (stage === 2) td.className = 'stage2';
+        else if (stage === 3) td.className = 'stage3';
+        else if (stage === 4) td.className = 'stage4';
+        else td.className = 'fail';
+        td.textContent = stage ? stage : '✖';
+        row.appendChild(td);
+      }
+
+      table.appendChild(row);
     }
-    return false;
-}
 
-function runTestForX(x) {
-    let convergedCount = 0;
-    let stageUsage = null;
-    for (let n = 1; n <= 1000; n++) {
-        let converged = false;
-        for (let stage = 1; stage <= 4; stage++) {
-            if (runSequence(n, x, stage)) {
-                converged = true;
-                if (!stageUsage || stage > stageUsage) {
-                    // track highest stage needed for ANY n
-                    stageUsage = Math.max(stageUsage || 0, stage);
-                }
-                break;
-            }
-        }
-        if (converged) convergedCount++;
+    // update progress bar
+    const percent = Math.floor((currentN / maxN) * 100);
+    document.getElementById('bar').style.width = percent + '%';
+
+    if (currentN <= maxN) {
+      setTimeout(processChunk, 0);
     }
-    const rate = (convergedCount / 1000 * 100).toFixed(3);
-    return { x, rate, stageUsage: stageUsage || 0 };
+  }
+
+  processChunk();
 }
 
-async function runExperiment() {
-    runBtn.disabled = true;
-    statusDiv.textContent = "Running tests...";
-    tableBody.innerHTML = "";
-    for (let x = 0; x <= 100; x++) {
-        const res = runTestForX(x);
-        const row = document.createElement('tr');
-        const xCell = document.createElement('td'); xCell.textContent = x;
-        const rateCell = document.createElement('td'); rateCell.textContent = res.rate;
-        const stageCell = document.createElement('td');
-        if (x === 0) {
-            stageCell.textContent = "Div 0 ❌";
-            row.classList.add('fail');
-        } else if (res.stageUsage === 0) {
-            stageCell.textContent = "Fail ❌";
-            row.classList.add('fail');
-        } else {
-            stageCell.textContent = `Stage ${res.stageUsage}`;
-            row.classList.add(`stage${res.stageUsage}`);
-        }
-        row.appendChild(xCell);
-        row.appendChild(rateCell);
-        row.appendChild(stageCell);
-        tableBody.appendChild(row);
-        await new Promise(r => setTimeout(r, 1)); // allow UI refresh
-    }
-    statusDiv.textContent = "Done!";
-    runBtn.disabled = false;
-}
-
-runBtn.addEventListener('click', runExperiment);
+run();
 </script>
 
 </body>
