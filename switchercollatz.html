@@ -39,6 +39,18 @@
         background: #bbb;
         cursor: not-allowed;
     }
+    .progress {
+        margin: 15px 0;
+        text-align: center;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    .status {
+        margin: 15px 0;
+        text-align: center;
+        font-style: italic;
+        color: #555;
+    }
     table {
         width: 100%;
         border-collapse: collapse;
@@ -46,8 +58,9 @@
     }
     th, td {
         border: 1px solid #ddd;
-        padding: 8px;
+        padding: 6px 8px;
         text-align: center;
+        font-size: 14px;
     }
     th {
         background-color: #34495e;
@@ -67,8 +80,9 @@
 
 <div class="container">
     <h1>Adaptive Generalized Collatz Analyzer</h1>
-    <button id="runBtn">Run Experiment (n=1..1000, x=0..100)</button>
-    <div id="status"></div>
+    <button id="runBtn">Run Experiment (n=1..10,000, x=0..500)</button>
+    <div class="progress" id="progress">Progress: 0 / 501</div>
+    <div class="status" id="status">Ready</div>
 
     <table id="resultsTable">
         <thead>
@@ -85,7 +99,12 @@
 <script>
 const runBtn = document.getElementById('runBtn');
 const statusDiv = document.getElementById('status');
+const progressDiv = document.getElementById('progress');
 const tableBody = document.querySelector('#resultsTable tbody');
+
+// Increased ranges
+const N_MAX = 10000;
+const X_MAX = 500;
 
 function calculateAlpha(n, x, stage) {
     const beta = n % x;
@@ -104,58 +123,79 @@ function calculateAlpha(n, x, stage) {
 }
 
 function getNextValue(n, x, stage) {
-    if (x === 0) return { value: NaN, error: "Division by zero" };
-    if (n % x === 0) return { value: n / x };
+    if (x === 0) return { value: NaN, error: true };
+    const mod = n % x;
+    if (mod === 0) return { value: n / x };
     const alpha = calculateAlpha(n, x, stage);
-    return { value: n + (n + alpha) / x };
+    const adjustment = (n + alpha) / x;
+    const next = n + adjustment;
+    if (!isFinite(next)) return { value: NaN, error: true };
+    return { value: next };
 }
 
 function runSequence(n, x, stage) {
     let current = n;
-    let seen = new Set();
-    const maxIterations = 10000;
+    const seen = new Set();
+    const maxIterations = 10000; // Prevent infinite hangs
+
     for (let i = 0; i < maxIterations; i++) {
         if (current === 1) return true;
-        if (!isFinite(current) || seen.has(current)) return false;
+        if (current < 1 || !isFinite(current) || seen.has(current)) return false;
         seen.add(current);
+
         const next = getNextValue(current, x, stage);
         if (next.error) return false;
         current = next.value;
+
+        // Avoid floating-point divergence or explosion
+        if (Math.abs(current) > 1e10) return false;
     }
     return false;
 }
 
 function runTestForX(x) {
     let convergedCount = 0;
-    let stageUsage = null;
-    for (let n = 1; n <= 1000; n++) {
+    let stageUsage = 0;
+
+    // Skip early if x is 0 (invalid)
+    if (x === 0) {
+        return { x, rate: 0, stageUsage: 0 };
+    }
+
+    for (let n = 1; n <= N_MAX; n++) {
         let converged = false;
         for (let stage = 1; stage <= 4; stage++) {
             if (runSequence(n, x, stage)) {
                 converged = true;
-                if (!stageUsage || stage > stageUsage) {
-                    // track highest stage needed for ANY n
-                    stageUsage = Math.max(stageUsage || 0, stage);
-                }
+                stageUsage = Math.max(stageUsage, stage);
                 break;
             }
         }
         if (converged) convergedCount++;
     }
-    const rate = (convergedCount / 1000 * 100).toFixed(3);
-    return { x, rate, stageUsage: stageUsage || 0 };
+
+    const rate = (convergedCount / N_MAX * 100).toFixed(3);
+    return { x, rate, stageUsage };
 }
 
 async function runExperiment() {
     runBtn.disabled = true;
-    statusDiv.textContent = "Running tests...";
+    statusDiv.textContent = "Starting experiment...";
     tableBody.innerHTML = "";
-    for (let x = 0; x <= 100; x++) {
+    progressDiv.textContent = `Progress: 0 / ${X_MAX + 1}`;
+
+    const startTime = performance.now();
+
+    let completed = 0;
+    const totalTasks = X_MAX + 1;
+
+    for (let x = 0; x <= X_MAX; x++) {
         const res = runTestForX(x);
         const row = document.createElement('tr');
         const xCell = document.createElement('td'); xCell.textContent = x;
         const rateCell = document.createElement('td'); rateCell.textContent = res.rate;
         const stageCell = document.createElement('td');
+
         if (x === 0) {
             stageCell.textContent = "Div 0 ❌";
             row.classList.add('fail');
@@ -166,13 +206,30 @@ async function runExperiment() {
             stageCell.textContent = `Stage ${res.stageUsage}`;
             row.classList.add(`stage${res.stageUsage}`);
         }
+
         row.appendChild(xCell);
         row.appendChild(rateCell);
         row.appendChild(stageCell);
         tableBody.appendChild(row);
-        await new Promise(r => setTimeout(r, 1)); // allow UI refresh
+
+        completed++;
+        const elapsed = performance.now() - startTime;
+        const avgTimePerX = elapsed / completed;
+        const estRemaining = ((totalTasks - completed) * avgTimePerX) / 1000; // seconds
+        const mins = Math.floor(estRemaining / 60);
+        const secs = Math.floor(estRemaining % 60);
+        const estStr = estRemaining > 1e6 ? "?" : `${mins}m ${secs}s`;
+
+        progressDiv.textContent = `Progress: ${completed} / ${totalTasks}`;
+        statusDiv.textContent = `Processing x = ${x} | ETA: ~${estStr}`;
+
+        // Allow UI to update
+        if (x % 5 === 0) await new Promise(r => setTimeout(r, 1));
     }
-    statusDiv.textContent = "Done!";
+
+    const totalTime = ((performance.now() - startTime) / 1000).toFixed(1);
+    statusDiv.textContent = `Done! Total time: ${totalTime} seconds.`;
+    progressDiv.textContent = `Completed: ${totalTasks} / ${totalTasks}`;
     runBtn.disabled = false;
 }
 
