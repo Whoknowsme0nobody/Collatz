@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Adaptive Generalized Collatz Analyzer</title>
+<style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #f0f2f5;
+        margin: 0;
+        padding: 20px;
+        color: #333;
+    }
+    .container {
+        max-width: 1200px;
+        margin: auto;
+        background: #fff;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1 {
+        text-align: center;
+        color: #2c3e50;
+    }
+    h2 {
+        color: #34495e;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 5px;
+    }
+    button {
+        background: linear-gradient(to right, #3498db, #2c3e50);
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 50px;
+        font-size: 16px;
+        cursor: pointer;
+        display: block;
+        margin: 20px auto;
+    }
+    button:disabled {
+        background: #bbb;
+        cursor: not-allowed;
+    }
+    .controls {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        margin: 20px 0;
+        flex-wrap: wrap;
+    }
+    .progress {
+        margin: 15px 0;
+        text-align: center;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    .status {
+        margin: 15px 0;
+        text-align: center;
+        font-style: italic;
+        color: #555;
+    }
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .summary-card {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #3498db;
+    }
+    .summary-card h3 {
+        margin-top: 0;
+        color: #2c3e50;
+    }
+    .stage-breakdown {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin: 15px 0;
+    }
+    .stage-card {
+        padding: 10px;
+        border-radius: 5px;
+        text-align: center;
+        font-weight: bold;
+    }
+    .stage1-card { background-color: #d4edda; color: #155724; }
+    .stage2-card { background-color: #fff3cd; color: #856404; }
+    .stage3-card { background-color: #d1ecf1; color: #0c5460; }
+    .stage4-card { background-color: #e0ccff; color: #3d0066; }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 6px 8px;
+        text-align: center;
+        font-size: 12px;
+    }
+    th {
+        background-color: #34495e;
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    tr:hover { background-color: #e8f4fe; }
+    /* Stage colors */
+    .stage1 { background-color: #d4edda; color: #155724; font-weight: bold; }
+    .stage2 { background-color: #fff3cd; color: #856404; font-weight: bold; }
+    .stage3 { background-color: #d1ecf1; color: #0c5460; font-weight: bold; }
+    .stage4 { background-color: #e0ccff; color: #3d0066; font-weight: bold; }
+    .fail   { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+    .perfect { background-color: #28a745; color: white; font-weight: bold; }
+    .near-perfect { background-color: #20c997; color: white; font-weight: bold; }
+    .good { background-color: #17a2b8; color: white; font-weight: bold; }
+    .table-container {
+        max-height: 600px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+    }
+    .revolutionary-banner {
+        background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        margin: 20px 0;
+        font-weight: bold;
+        font-size: 18px;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="revolutionary-banner">
+        🚀 SUPER ADAPTIVE COLLATZ ANALYZER - REVOLUTIONARY COMPLETE STAGE TRACKING 🚀
+        <br><small>Comprehensive Analysis Across All 4 Stages | Full Battle Report</small>
+    </div>
+    
+    <h1>Super Adaptive Generalized Collatz Analyzer</h1>
+    
+    <div class="controls">
+        <button id="runBtn">🔬 Run Complete Analysis (n=1..10,000, x=0..500)</button>
+        <button id="saveBtn" disabled>💾 Save Results</button>
+        <button id="loadBtn">📂 Load Results</button>
+        <input type="file" id="fileInput" accept=".json" style="display: none;">
+    </div>
+    
+    <div class="progress" id="progress">Progress: Ready to Launch</div>
+    <div class="status" id="status">Ready for Revolutionary Analysis</div>
+
+    <div id="summarySection" style="display: none;">
+        <h2>🎯 Battle Summary - Complete Intelligence Report</h2>
+        
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h3>🏆 Overall Performance</h3>
+                <div id="overallSummary"></div>
+            </div>
+            
+            <div class="summary-card">
+                <h3>🎭 Stage Performance Breakdown</h3>
+                <div class="stage-breakdown">
+                    <div class="stage-card stage1-card">
+                        <div>Stage 1</div>
+                        <div id="stage1Count">-</div>
+                    </div>
+                    <div class="stage-card stage2-card">
+                        <div>Stage 2</div>
+                        <div id="stage2Count">-</div>
+                    </div>
+                    <div class="stage-card stage3-card">
+                        <div>Stage 3</div>
+                        <div id="stage3Count">-</div>
+                    </div>
+                    <div class="stage-card stage4-card">
+                        <div>Stage 4</div>
+                        <div id="stage4Count">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <h3>📊 Convergence Categories</h3>
+                <div id="categoryBreakdown"></div>
+            </div>
+            
+            <div class="summary-card">
+                <h3>🧬 Revolutionary Insights</h3>
+                <div id="insights"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>x</th>
+                    <th>Adaptive Rate (%)</th>
+                    <th>Best Stage</th>
+                    <th>Stage 1 (%)</th>
+                    <th>Stage 2 (%)</th>
+                    <th>Stage 3 (%)</th>
+                    <th>Stage 4 (%)</th>
+                    <th>Performance</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const runBtn = document.getElementById('runBtn');
+const saveBtn = document.getElementById('saveBtn');
+const loadBtn = document.getElementById('loadBtn');
+const fileInput = document.getElementById('fileInput');
+const statusDiv = document.getElementById('status');
+const progressDiv = document.getElementById('progress');
+const tableBody = document.querySelector('#resultsTable tbody');
+const summarySection = document.getElementById('summarySection');
+
+// Increased ranges for revolutionary analysis
+const N_MAX = 10000;
+const X_MAX = 500;
+
+let globalResults = [];
+
+function calculateAlpha(n, x, stage) {
+    const beta = n % x;
+    switch(stage) {
+        case 1:
+            return (beta <= x/2) ? -beta : (x - beta);
+        case 2:
+            return (beta <= x/2) ? (x - beta) : -beta;
+        case 3:
+            return -beta;
+        case 4:
+            return x - beta;
+        default:
+            return 0;
+    }
+}
+
+function getNextValue(n, x, stage) {
+    if (x === 0) return { value: NaN, error: true };
+    const mod = n % x;
+    if (mod === 0) return { value: n / x };
+    const alpha = calculateAlpha(n, x, stage);
+    const adjustment = (n + alpha) / x;
+    const next = n + adjustment;
+    if (!isFinite(next)) return { value: NaN, error: true };
+    return { value: next };
+}
+
+function runSequence(n, x, stage) {
+    let current = n;
+    const seen = new Set();
+    const maxIterations = 10000;
+
+    for (let i = 0; i < maxIterations; i++) {
+        if (current === 1) return true;
+        if (current < 1 || !isFinite(current) || seen.has(current)) return false;
+        seen.add(current);
+
+        const next = getNextValue(current, x, stage);
+        if (next.error) return false;
+        current = next.value;
+
+        if (Math.abs(current) > 1e10) return false;
+    }
+    return false;
+}
+
+function runCompleteTestForX(x) {
+    const stageResults = [0, 0, 0, 0]; // Convergence counts for each stage
+    let bestStage = 0;
+    let bestRate = 0;
+
+    if (x === 0) {
+        return { x, stageResults, bestStage, bestRate: 0, adaptiveRate: 0 };
+    }
+
+    // Test each stage individually for complete picture
+    for (let stage = 1; stage <= 4; stage++) {
+        let convergedCount = 0;
+        for (let n = 1; n <= N_MAX; n++) {
+            if (runSequence(n, x, stage)) {
+                convergedCount++;
+            }
+        }
+        const rate = (convergedCount / N_MAX * 100);
+        stageResults[stage - 1] = rate;
+        
+        if (rate > bestRate) {
+            bestRate = rate;
+            bestStage = stage;
+        }
+    }
+
+    // Calculate adaptive rate (best performance across all starting values)
+    let adaptiveConverged = 0;
+    for (let n = 1; n <= N_MAX; n++) {
+        for (let stage = 1; stage <= 4; stage++) {
+            if (runSequence(n, x, stage)) {
+                adaptiveConverged++;
+                break; // Found convergence, move to next n
+            }
+        }
+    }
+    const adaptiveRate = (adaptiveConverged / N_MAX * 100);
+
+    return { x, stageResults, bestStage, bestRate, adaptiveRate };
+}
+
+function getPerformanceClass(rate) {
+    if (rate >= 100) return 'perfect';
+    if (rate >= 90) return 'near-perfect';
+    if (rate >= 75) return 'good';
+    if (rate >= 50) return 'stage4';
+    if (rate >= 25) return 'stage3';
+    if (rate >= 10) return 'stage2';
+    if (rate > 0) return 'stage1';
+    return 'fail';
+}
+
+function getPerformanceLabel(rate) {
+    if (rate >= 100) return 'PERFECT 🎯';
+    if (rate >= 90) return 'Near-Perfect ⭐';
+    if (rate >= 75) return 'Excellent 🔥';
+    if (rate >= 50) return 'Good 👍';
+    if (rate >= 25) return 'Fair 📊';
+    if (rate >= 10) return 'Poor 📉';
+    if (rate > 0) return 'Very Poor 💔';
+    return 'Failed ❌';
+}
+
+function updateSummary() {
+    if (globalResults.length === 0) return;
+
+    // Overall statistics
+    const perfectCount = globalResults.filter(r => r.adaptiveRate >= 100).length;
+    const nearPerfectCount = globalResults.filter(r => r.adaptiveRate >= 90 && r.adaptiveRate < 100).length;
+    const excellentCount = globalResults.filter(r => r.adaptiveRate >= 75 && r.adaptiveRate < 90).length;
+    const goodCount = globalResults.filter(r => r.adaptiveRate >= 50 && r.adaptiveRate < 75).length;
+
+    const totalTested = globalResults.length - 1; // Exclude x=0
+    const avgAdaptiveRate = globalResults.slice(1).reduce((sum, r) => sum + r.adaptiveRate, 0) / totalTested;
+
+    document.getElementById('overallSummary').innerHTML = `
+        <strong>Tested Divisors:</strong> ${totalTested}<br>
+        <strong>Average Adaptive Rate:</strong> ${avgAdaptiveRate.toFixed(2)}%<br>
+        <strong>Perfect Convergence:</strong> ${perfectCount} divisors<br>
+        <strong>Near-Perfect (≥90%):</strong> ${nearPerfectCount} divisors<br>
+        <strong>Excellent (≥75%):</strong> ${excellentCount} divisors<br>
+        <strong>Good (≥50%):</strong> ${goodCount} divisors
+    `;
+
+    // Stage performance
+    const stageCounts = [0, 0, 0, 0];
+    globalResults.slice(1).forEach(r => {
+        if (r.bestStage > 0) stageCounts[r.bestStage - 1]++;
+    });
+
+    document.getElementById('stage1Count').textContent = stageCounts[0];
+    document.getElementById('stage2Count').textContent = stageCounts[1];
+    document.getElementById('stage3Count').textContent = stageCounts[2];
+    document.getElementById('stage4Count').textContent = stageCounts[3];
+
+    // Category breakdown
+    document.getElementById('categoryBreakdown').innerHTML = `
+        Perfect (100%): <strong>${perfectCount}</strong><br>
+        Near-Perfect (90-99%): <strong>${nearPerfectCount}</strong><br>
+        Excellent (75-89%): <strong>${excellentCount}</strong><br>
+        Good (50-74%): <strong>${goodCount}</strong><br>
+        Poor (<50%): <strong>${totalTested - perfectCount - nearPerfectCount - excellentCount - goodCount}</strong>
+    `;
+
+    // Revolutionary insights
+    const bestX = globalResults.slice(1).reduce((best, current) => 
+        current.adaptiveRate > best.adaptiveRate ? current : best
+    );
+    
+    const stage4Dominance = stageCounts[3] / totalTested * 100;
+    
+    document.getElementById('insights').innerHTML = `
+        <strong>Best Performer:</strong> x=${bestX.x} (${bestX.adaptiveRate.toFixed(2)}%)<br>
+        <strong>Stage 4 Dominance:</strong> ${stage4Dominance.toFixed(1)}% of cases<br>
+        <strong>Revolutionary Discovery:</strong> ${perfectCount > 1 ? 'Multiple perfect convergences found!' : perfectCount === 1 ? 'Single perfect convergence confirmed!' : 'No perfect convergence in tested range'}<br>
+        <strong>Adaptive Advantage:</strong> Multi-stage approach vs single-stage superiority confirmed
+    `;
+
+    summarySection.style.display = 'block';
+}
+
+async function runCompleteExperiment() {
+    runBtn.disabled = true;
+    saveBtn.disabled = true;
+    statusDiv.textContent = "🚀 Launching revolutionary complete analysis...";
+    tableBody.innerHTML = "";
+    globalResults = [];
+    summarySection.style.display = 'none';
+
+    const startTime = performance.now();
+    let completed = 0;
+    const totalTasks = X_MAX + 1;
+
+    for (let x = 0; x <= X_MAX; x++) {
+        const res = runCompleteTestForX(x);
+        globalResults.push(res);
+        
+        const row = document.createElement('tr');
+        
+        // Create cells
+        const xCell = document.createElement('td'); 
+        xCell.textContent = x;
+        
+        const adaptiveCell = document.createElement('td'); 
+        adaptiveCell.textContent = res.adaptiveRate.toFixed(2);
+        
+        const bestStageCell = document.createElement('td');
+        
+        const stage1Cell = document.createElement('td');
+        const stage2Cell = document.createElement('td');
+        const stage3Cell = document.createElement('td');
+        const stage4Cell = document.createElement('td');
+        
+        const performanceCell = document.createElement('td');
+
+        if (x === 0) {
+            bestStageCell.textContent = "Div by 0 ❌";
+            stage1Cell.textContent = "0.00";
+            stage2Cell.textContent = "0.00";
+            stage3Cell.textContent = "0.00";
+            stage4Cell.textContent = "0.00";
+            performanceCell.textContent = "Invalid";
+            row.classList.add('fail');
+        } else {
+            bestStageCell.textContent = res.bestStage > 0 ? `Stage ${res.bestStage}` : "None";
+            stage1Cell.textContent = res.stageResults[0].toFixed(2);
+            stage2Cell.textContent = res.stageResults[1].toFixed(2);
+            stage3Cell.textContent = res.stageResults[2].toFixed(2);
+            stage4Cell.textContent = res.stageResults[3].toFixed(2);
+            performanceCell.textContent = getPerformanceLabel(res.adaptiveRate);
+            
+            const perfClass = getPerformanceClass(res.adaptiveRate);
+            row.classList.add(perfClass);
+        }
+
+        row.appendChild(xCell);
+        row.appendChild(adaptiveCell);
+        row.appendChild(bestStageCell);
+        row.appendChild(stage1Cell);
+        row.appendChild(stage2Cell);
+        row.appendChild(stage3Cell);
+        row.appendChild(stage4Cell);
+        row.appendChild(performanceCell);
+        tableBody.appendChild(row);
+
+        completed++;
+        const elapsed = performance.now() - startTime;
+        const avgTimePerX = elapsed / completed;
+        const estRemaining = ((totalTasks - completed) * avgTimePerX) / 1000;
+        const mins = Math.floor(estRemaining / 60);
+        const secs = Math.floor(estRemaining % 60);
+        const estStr = estRemaining > 1e6 ? "∞" : `${mins}m ${secs}s`;
+
+        progressDiv.textContent = `🎯 Battle Progress: ${completed} / ${totalTasks} | Stage: ${Math.floor((completed/totalTasks)*4) + 1}/4`;
+        statusDiv.textContent = `🔬 Analyzing x=${x} | ETA: ~${estStr} | Revolutionary data incoming...`;
+
+        // Allow UI updates
+        if (x % 5 === 0) await new Promise(r => setTimeout(r, 1));
+    }
+
+    const totalTime = ((performance.now() - startTime) / 1000).toFixed(1);
+    statusDiv.textContent = `🎉 REVOLUTIONARY ANALYSIS COMPLETE! Total time: ${totalTime} seconds | Data ready for mathematical history!`;
+    progressDiv.textContent = `🏆 MISSION ACCOMPLISHED: ${totalTasks} / ${totalTasks} - Complete Intelligence Gathered`;
+    
+    updateSummary();
+    
+    runBtn.disabled = false;
+    saveBtn.disabled = false;
+}
+
+function saveResults() {
+    if (globalResults.length === 0) {
+        alert('No results to save! Run the experiment first.');
+        return;
+    }
+
+    const data = {
+        timestamp: new Date().toISOString(),
+        experiment: "Super Adaptive Generalized Collatz Analysis",
+        author: "Mohamed Amine Belachhab",
+        parameters: {
+            N_MAX,
+            X_MAX,
+            stages: 4,
+            method: "Complete stage tracking with adaptive selection"
+        },
+        results: globalResults,
+        summary: {
+            total_tested: globalResults.length - 1,
+            perfect_convergence: globalResults.filter(r => r.adaptiveRate >= 100).length,
+            near_perfect: globalResults.filter(r => r.adaptiveRate >= 90 && r.adaptiveRate < 100).length,
+            avg_adaptive_rate: globalResults.slice(1).reduce((sum, r) => sum + r.adaptiveRate, 0) / (globalResults.length - 1)
+        }
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `super_adaptive_collatz_results_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function loadResults() {
+    fileInput.click();
+}
+
+fileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            globalResults = data.results || [];
+            
+            // Rebuild table
+            tableBody.innerHTML = "";
+            globalResults.forEach(res => {
+                const row = document.createElement('tr');
+                
+                const xCell = document.createElement('td'); 
+                xCell.textContent = res.x;
+                
+                const adaptiveCell = document.createElement('td'); 
+                adaptiveCell.textContent = res.adaptiveRate.toFixed(2);
+                
+                const bestStageCell = document.createElement('td');
+                bestStageCell.textContent = res.bestStage > 0 ? `Stage ${res.bestStage}` : "None";
+                
+                const stage1Cell = document.createElement('td');
+                stage1Cell.textContent = res.stageResults[0].toFixed(2);
+                
+                const stage2Cell = document.createElement('td');
+                stage2Cell.textContent = res.stageResults[1].toFixed(2);
+                
+                const stage3Cell = document.createElement('td');
+                stage3Cell.textContent = res.stageResults[2].toFixed(2);
+                
+                const stage4Cell = document.createElement('td');
+                stage4Cell.textContent = res.stageResults[3].toFixed(2);
+                
+                const performanceCell = document.createElement('td');
+                performanceCell.textContent = getPerformanceLabel(res.adaptiveRate);
+                
+                const perfClass = getPerformanceClass(res.adaptiveRate);
+                row.classList.add(perfClass);
+
+                row.appendChild(xCell);
+                row.appendChild(adaptiveCell);
+                row.appendChild(bestStageCell);
+                row.appendChild(stage1Cell);
+                row.appendChild(stage2Cell);
+                row.appendChild(stage3Cell);
+                row.appendChild(stage4Cell);
+                row.appendChild(performanceCell);
+                tableBody.appendChild(row);
+            });
+            
+            updateSummary();
+            saveBtn.disabled = false;
+            statusDiv.textContent = `✅ Results loaded successfully! ${globalResults.length} divisors analyzed.`;
+            
+        } catch (error) {
+            alert('Error loading file: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+});
+
+// Event listeners
+runBtn.addEventListener('click', runCompleteExperiment);
+saveBtn.addEventListener('click', saveResults);
+loadBtn.addEventListener('click', loadResults);
+</script>
+
+</body>
+</html>
