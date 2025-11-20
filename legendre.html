@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prime Divisor Statement Tester</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .statement {
+            background: #f0f4ff;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 25px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        label {
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="number"] {
+            padding: 10px;
+            border: 2px solid #667eea;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 150px;
+        }
+        button {
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .progress {
+            display: none;
+            margin: 20px 0;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+        }
+        .summary {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e8f5e9;
+            border-radius: 5px;
+            border-left: 4px solid #4caf50;
+        }
+        .summary.has-counterexamples {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .summary h2 {
+            margin-top: 0;
+            color: #2e7d32;
+        }
+        .summary.has-counterexamples h2 {
+            color: #c62828;
+        }
+        .counterexamples {
+            margin: 20px 0;
+            padding: 20px;
+            background: #fff3e0;
+            border-radius: 5px;
+            border-left: 4px solid #ff9800;
+        }
+        .counterexamples h2 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        .counter-item {
+            background: white;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 3px solid #ff5722;
+        }
+        .details {
+            margin-top: 20px;
+        }
+        .range-group {
+            margin: 15px 0;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: 5px;
+            border-left: 3px solid #9c27b0;
+        }
+        .range-title {
+            font-weight: bold;
+            color: #9c27b0;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .number-item {
+            margin: 8px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 3px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .number-item.counterexample {
+            background: #ffcdd2;
+            border-left: 3px solid #f44336;
+        }
+        .number-item.valid {
+            background: #c8e6c9;
+            border-left: 3px solid #4caf50;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-box {
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Prime Divisor Statement Tester</h1>
+        
+        <div class="statement">
+            <strong>Statement:</strong> For any (n,x) in ℕ², with n² < x < (n+1)² (strictly between),
+            if x has m prime divisors (with duplicates),
+            then there exists x_k with m-k prime divisors, where k ∈ [1, m-1] (k can be 1 or m-1).
+        </div>
+
+        <div class="controls">
+            <label for="maxN">Test up to n =</label>
+            <input type="number" id="maxN" min="1" max="100" value="10">
+            <button onclick="runTest()">Run Test</button>
+        </div>
+
+        <div class="progress" id="progress"></div>
+
+        <div id="summarySection"></div>
+        <div id="counterexamplesSection"></div>
+        <div id="detailsSection"></div>
+    </div>
+
+    <script>
+        function getPrimeFactorization(num) {
+            const factors = [];
+            let n = num;
+            
+            for (let i = 2; i <= Math.sqrt(n); i++) {
+                while (n % i === 0) {
+                    factors.push(i);
+                    n /= i;
+                }
+            }
+            
+            if (n > 1) {
+                factors.push(n);
+            }
+            
+            return factors;
+        }
+
+        function checkStatement(x, rangeStart, rangeEnd) {
+            const factors = getPrimeFactorization(x);
+            const m = factors.length;
+            
+            if (m <= 1) {
+                return {
+                    x: x,
+                    m: m,
+                    factors: factors,
+                    valid: true,
+                    reason: "m ≤ 1, statement vacuously true",
+                    foundCounts: []
+                };
+            }
+            
+            // Check if there exist numbers with m-k prime divisors for k in [1, m-1]
+            const targetCounts = new Set();
+            for (let k = 1; k <= m - 1; k++) {
+                targetCounts.add(m - k);
+            }
+            
+            const foundCounts = new Set();
+            
+            // Check all numbers in the range (excluding endpoints)
+            for (let testNum = rangeStart + 1; testNum < rangeEnd; testNum++) {
+                const testFactors = getPrimeFactorization(testNum);
+                const testM = testFactors.length;
+                
+                if (targetCounts.has(testM)) {
+                    foundCounts.add(testM);
+                }
+            }
+            
+            const missingCounts = [...targetCounts].filter(c => !foundCounts.has(c));
+            
+            return {
+                x: x,
+                m: m,
+                factors: factors,
+                valid: missingCounts.length === 0,
+                reason: missingCounts.length === 0 ? 
+                    `All required counts found: ${[...foundCounts].sort((a,b) => a-b).join(', ')}` : 
+                    `Missing counts: ${missingCounts.sort((a,b) => a-b).join(', ')}`,
+                targetCounts: [...targetCounts].sort((a,b) => a-b),
+                foundCounts: [...foundCounts].sort((a,b) => a-b),
+                missingCounts: missingCounts.sort((a,b) => a-b)
+            };
+        }
+
+        function runTest() {
+            const maxN = parseInt(document.getElementById('maxN').value);
+            const progressDiv = document.getElementById('progress');
+            const summarySection = document.getElementById('summarySection');
+            const counterexamplesSection = document.getElementById('counterexamplesSection');
+            const detailsSection = document.getElementById('detailsSection');
+            
+            progressDiv.style.display = 'block';
+            progressDiv.textContent = 'Testing...';
+            
+            summarySection.innerHTML = '';
+            counterexamplesSection.innerHTML = '';
+            detailsSection.innerHTML = '';
+            
+            setTimeout(() => {
+                const results = [];
+                const counterexamples = [];
+                let totalNumbers = 0;
+                let validNumbers = 0;
+                
+                for (let n = 1; n <= maxN; n++) {
+                    const rangeStart = n * n;
+                    const rangeEnd = (n + 1) * (n + 1);
+                    const rangeResults = [];
+                    
+                    // Exclude endpoints: n^2 and (n+1)^2
+                    for (let x = rangeStart + 1; x < rangeEnd; x++) {
+                        totalNumbers++;
+                        const result = checkStatement(x, rangeStart, rangeEnd);
+                        rangeResults.push(result);
+                        
+                        if (result.valid) {
+                            validNumbers++;
+                        } else {
+                            counterexamples.push({n: n, ...result});
+                        }
+                    }
+                    
+                    results.push({
+                        n: n,
+                        rangeStart: rangeStart,
+                        rangeEnd: rangeEnd,
+                        results: rangeResults
+                    });
+                }
+                
+                // Display summary
+                const hasCounterexamples = counterexamples.length > 0;
+                summarySection.innerHTML = `
+                    <div class="summary ${hasCounterexamples ? 'has-counterexamples' : ''}">
+                        <h2>${hasCounterexamples ? '❌ Statement is FALSE' : '✅ Statement is TRUE'}</h2>
+                        <div class="stat-grid">
+                            <div class="stat-box">
+                                <div class="stat-value">${maxN}</div>
+                                <div class="stat-label">Max n tested</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-value">${totalNumbers}</div>
+                                <div class="stat-label">Total numbers tested</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-value">${validNumbers}</div>
+                                <div class="stat-label">Valid cases</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-value">${counterexamples.length}</div>
+                                <div class="stat-label">Counterexamples</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Display counterexamples
+                if (counterexamples.length > 0) {
+                    let counterHTML = '<div class="counterexamples"><h2>Counterexamples Found</h2>';
+                    counterexamples.forEach(ce => {
+                        counterHTML += `
+                            <div class="counter-item">
+                                <strong>n = ${ce.n}, x = ${ce.x}</strong><br>
+                                Range: (${ce.n * ce.n}, ${(ce.n + 1) * (ce.n + 1)}) - excluding endpoints<br>
+                                Prime factorization: ${ce.factors.join(' × ')} (m = ${ce.m})<br>
+                                Required counts: ${ce.targetCounts.join(', ')}<br>
+                                Found counts: ${ce.foundCounts.join(', ')}<br>
+                                <strong style="color: #d32f2f;">Missing counts: ${ce.missingCounts.join(', ')}</strong>
+                            </div>
+                        `;
+                    });
+                    counterHTML += '</div>';
+                    counterexamplesSection.innerHTML = counterHTML;
+                }
+                
+                // Display detailed results
+                let detailsHTML = '<div class="details"><h2>Detailed Results</h2>';
+                results.forEach(range => {
+                    detailsHTML += `
+                        <div class="range-group">
+                            <div class="range-title">n = ${range.n}: Range (${range.rangeStart}, ${range.rangeEnd}) - excluding endpoints</div>
+                    `;
+                    
+                    range.results.forEach(result => {
+                        const className = result.valid ? 'valid' : 'counterexample';
+                        const icon = result.valid ? '✓' : '✗';
+                        detailsHTML += `
+                            <div class="number-item ${className}">
+                                ${icon} <strong>x = ${result.x}</strong>: ${result.factors.join(' × ')} 
+                                (m = ${result.m}) - ${result.reason}
+                            </div>
+                        `;
+                    });
+                    
+                    detailsHTML += '</div>';
+                });
+                detailsHTML += '</div>';
+                detailsSection.innerHTML = detailsHTML;
+                
+                progressDiv.style.display = 'none';
+            }, 100);
+        }
+
+        // Run initial test
+        window.onload = () => runTest();
+    </script>
+</body>
+</html>
