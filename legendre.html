@@ -178,8 +178,10 @@
         </div>
 
         <div class="controls">
-            <label for="maxN">Test up to n =</label>
-            <input type="number" id="maxN" min="1" max="100" value="10">
+            <label for="minN">Test from n =</label>
+            <input type="number" id="minN" min="1" max="1000" value="1">
+            <label for="maxN">to n =</label>
+            <input type="number" id="maxN" min="1" max="1000" value="10">
             <button onclick="runTest()">Run Test</button>
         </div>
 
@@ -259,14 +261,25 @@
         }
 
         function runTest() {
+            const minN = parseInt(document.getElementById('minN').value);
             const maxN = parseInt(document.getElementById('maxN').value);
             const progressDiv = document.getElementById('progress');
             const summarySection = document.getElementById('summarySection');
             const counterexamplesSection = document.getElementById('counterexamplesSection');
             const detailsSection = document.getElementById('detailsSection');
             
+            if (minN > maxN) {
+                alert('Minimum n must be less than or equal to maximum n!');
+                return;
+            }
+            
+            if (minN < 1) {
+                alert('Minimum n must be at least 1!');
+                return;
+            }
+            
             progressDiv.style.display = 'block';
-            progressDiv.textContent = 'Testing...';
+            progressDiv.textContent = `Testing n from ${minN} to ${maxN}...`;
             
             summarySection.innerHTML = '';
             counterexamplesSection.innerHTML = '';
@@ -278,7 +291,7 @@
                 let totalNumbers = 0;
                 let validNumbers = 0;
                 
-                for (let n = 1; n <= maxN; n++) {
+                for (let n = minN; n <= maxN; n++) {
                     const rangeStart = n * n;
                     const rangeEnd = (n + 1) * (n + 1);
                     const rangeResults = [];
@@ -311,8 +324,8 @@
                         <h2>${hasCounterexamples ? '❌ Statement is FALSE' : '✅ Statement is TRUE'}</h2>
                         <div class="stat-grid">
                             <div class="stat-box">
-                                <div class="stat-value">${maxN}</div>
-                                <div class="stat-label">Max n tested</div>
+                                <div class="stat-value">${minN} - ${maxN}</div>
+                                <div class="stat-label">n range tested</div>
                             </div>
                             <div class="stat-box">
                                 <div class="stat-value">${totalNumbers}</div>
