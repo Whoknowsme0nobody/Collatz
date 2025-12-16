@@ -335,39 +335,42 @@
         let newPrimesExamples = [];
         let reusedExamples = [];
         
-        function isPrime(n) {
-            if (n < 2) return false;
-            if (n === 2 || n === 3) return true;
-            if (n % 2 === 0) return false;
-            
-            const smallPrimes = [5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
-            if (n <= 47) return smallPrimes.includes(n);
-            for (let p of smallPrimes) {
-                if (n % p === 0) return false;
-            }
-            
-            let d = n - 1;
-            let r = 0;
-            while (d % 2 === 0) {
-                d /= 2;
-                r++;
-            }
-            
-            const witnesses = [2, 3, 5, 7, 11, 13, 17, 19, 23];
-            for (let a of witnesses) {
-                if (a >= n) continue;
-                let x = modPow(a, d, n);
-                if (x === 1 || x === n - 1) continue;
+        // Precompute primes using Sieve of Eratosthenes for better performance
+        let primeSieve = null;
+        let sieveLimit = 0;
+        
+        function updateSieveIfNeeded(limit) {
+            if (primeSieve === null || limit > sieveLimit) {
+                sieveLimit = Math.max(limit, sieveLimit * 2, 10000); // Double the previous limit or start with 10000
+                primeSieve = new Array(sieveLimit + 1).fill(true);
+                primeSieve[0] = primeSieve[1] = false;
                 
-                let composite = true;
-                for (let i = 0; i < r - 1; i++) {
-                    x = (x * x) % n;
-                    if (x === n - 1) {
-                        composite = false;
-                        break;
+                for (let i = 2; i * i <= sieveLimit; i++) {
+                    if (primeSieve[i]) {
+                        for (let j = i * i; j <= sieveLimit; j += i) {
+                            primeSieve[j] = false;
+                        }
                     }
                 }
-                if (composite) return false;
+            }
+        }
+        
+        function isPrime(n) {
+            if (n < 2) return false;
+            if (n <= sieveLimit) return primeSieve[n];
+            
+            // For numbers beyond our sieve, use trial division
+            if (n < 1000000) { // Update sieve for numbers in this range
+                updateSieveIfNeeded(n);
+                return primeSieve[n];
+            }
+            
+            // For very large numbers, fall back to trial division
+            if (n < 2) return false;
+            if (n === 2) return true;
+            if (n % 2 === 0) return false;
+            for (let i = 3; i * i <= n; i += 2) {
+                if (n % i === 0) return false;
             }
             return true;
         }
@@ -384,6 +387,9 @@
         }
         
         function findGoldbachPair(n) {
+            // Since we're looking for two primes that sum to n,
+            // and we want to optimize, we can use the precomputed sieve
+            // Start from 2 and go up to n/2
             for (let p1 = 2; p1 <= n / 2; p1++) {
                 if (isPrime(p1)) {
                     let p2 = n - p1;
@@ -404,6 +410,9 @@
                 transformations: []
             };
             
+            // Precompute original values for reuse in checks
+            const p1IsNew = (newP) => (newP !== p1 && newP !== p2);
+            
             // Method 1: (P₁ + 2, P₂)
             const newP1_m1 = p1 + 2;
             const newP2_m1 = p2;
@@ -412,7 +421,7 @@
                 results.transformations.push({
                     method: 1,
                     pair: [newP1_m1, newP2_m1],
-                    isNew: (newP1_m1 !== p1 && newP1_m1 !== p2 && newP2_m1 !== p1 && newP2_m1 !== p2)
+                    isNew: p1IsNew(newP1_m1) && p1IsNew(newP2_m1)
                 });
             }
             
@@ -425,7 +434,7 @@
                     results.transformations.push({
                         method: 2,
                         pair: [newP1_m2, newP2_m2],
-                        isNew: (newP1_m2 !== p1 && newP1_m2 !== p2 && newP2_m2 !== p1 && newP2_m2 !== p2)
+                        isNew: p1IsNew(newP1_m2) && p1IsNew(newP2_m2)
                     });
                 }
             }
@@ -455,41 +464,61 @@
             
             document.getElementById('tableBody').innerHTML = '';
             
+            // Precompute all needed primes in one go
+            updateSieveIfNeeded(maxRange + 100);
+            
             for (let rangeEnd = reportStep; rangeEnd <= maxRange; rangeEnd += reportStep) {
                 let rangeTransformations = 0;
                 let rangeNewPrimesSuccesses = 0;
                 let rangeAnyValidSuccesses = 0;
                 let rangeNewExamples = [];
                 
+                // Process in chunks to keep UI responsive
+                const nValues = [];
                 for (let n = 4; n <= rangeEnd; n += 2) {
-                    const pair = findGoldbachPair(n);
-                    if (pair) {
-                        rangeTransformations++;
-                        totalTransformations++;
-                        
-                        const result = testNewPrimesK1(pair[0], pair[1], n);
-                        
-                        if (result.anyValidSuccess) {
-                            rangeAnyValidSuccesses++;
-                            totalAnyValidSuccesses++;
-                        }
-                        
-                        if (result.newPrimesSuccess) {
-                            rangeNewPrimesSuccesses++;
-                            totalNewPrimesSuccesses++;
+                    nValues.push(n);
+                }
+                
+                // Process in batches to prevent blocking
+                const batchSize = 1000;
+                for (let i = 0; i < nValues.length; i += batchSize) {
+                    const batch = nValues.slice(i, i + batchSize);
+                    
+                    for (const n of batch) {
+                        const pair = findGoldbachPair(n);
+                        if (pair) {
+                            rangeTransformations++;
+                            totalTransformations++;
                             
-                            if (rangeNewExamples.length < 2) {
-                                const newTransform = result.transformations.find(t => t.isNew);
-                                rangeNewExamples.push(
-                                    `${pair[0]}+${pair[1]} → ${newTransform.pair[0]}+${newTransform.pair[1]}`
+                            const result = testNewPrimesK1(pair[0], pair[1], n);
+                            
+                            if (result.anyValidSuccess) {
+                                rangeAnyValidSuccesses++;
+                                totalAnyValidSuccesses++;
+                            }
+                            
+                            if (result.newPrimesSuccess) {
+                                rangeNewPrimesSuccesses++;
+                                totalNewPrimesSuccesses++;
+                                
+                                if (rangeNewExamples.length < 2) {
+                                    const newTransform = result.transformations.find(t => t.isNew);
+                                    rangeNewExamples.push(
+                                        `${pair[0]}+${pair[1]} → ${newTransform.pair[0]}+${newTransform.pair[1]}`
+                                    );
+                                }
+                            } else if (result.anyValidSuccess && reusedExamples.length < 5) {
+                                const reusedTransform = result.transformations[0];
+                                reusedExamples.push(
+                                    `${pair[0]}+${pair[1]} → ${reusedTransform.pair[0]}+${reusedTransform.pair[1]} (REUSED)`
                                 );
                             }
-                        } else if (result.anyValidSuccess && reusedExamples.length < 5) {
-                            const reusedTransform = result.transformations[0];
-                            reusedExamples.push(
-                                `${pair[0]}+${pair[1]} → ${reusedTransform.pair[0]}+${reusedTransform.pair[1]} (REUSED)`
-                            );
                         }
+                    }
+                    
+                    // Yield control back to the browser periodically
+                    if (i % (batchSize * 2) === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 1));
                     }
                 }
                 

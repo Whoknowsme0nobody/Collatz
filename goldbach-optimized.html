@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimized Goldbach Computation</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root" class="min-h-screen bg-gray-50"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useCallback } = React;
+
+        const Card = ({ children, className = "" }) => (
+            <div className={`rounded-lg border bg-white shadow-sm ${className}`}>
+                {children}
+            </div>
+        );
+
+        const CardHeader = ({ children }) => (
+            <div className="p-6 pb-4">
+                {children}
+            </div>
+        );
+
+        const CardContent = ({ children }) => (
+            <div className="p-6 pt-0">
+                {children}
+            </div>
+        );
+
+        const GoldbachComputation = () => {
+          const [bound, setBound] = useState(67);
+          const [results, setResults] = useState(null);
+          const [computing, setComputing] = useState(false);
+
+          // Precompute primes using Sieve of Eratosthenes for better performance
+          const sieveOfEratosthenes = useCallback((limit) => {
+            if (limit < 2) return new Array(limit + 1).fill(false);
+            
+            const isPrimeArray = new Array(limit + 1).fill(true);
+            isPrimeArray[0] = isPrimeArray[1] = false;
+            
+            for (let i = 2; i * i <= limit; i++) {
+              if (isPrimeArray[i]) {
+                for (let j = i * i; j <= limit; j += i) {
+                  isPrimeArray[j] = false;
+                }
+              }
+            }
+            return isPrimeArray;
+          }, []);
+
+          // Memoized prime checker using precomputed sieve
+          const primeSieve = useMemo(() => sieveOfEratosthenes(bound * 2 + 10), [bound, sieveOfEratosthenes]);
+          
+          const isPrime = useCallback((n) => {
+            if (n < 2 || n > primeSieve.length - 1) return n >= 2 && n <= Math.sqrt(primeSieve.length - 1) && (() => {
+              for (let i = 2; i * i <= n; i++) {
+                if (n % i === 0) return false;
+              }
+              return true;
+            })();
+            return primeSieve[n];
+          }, [primeSieve]);
+
+          const computeSets = useCallback((p, q) => {
+            const setA = [];
+            const setB = [];
+            
+            // Precompute bounds to avoid repeated calculations
+            const p2 = 2 * p;
+            const qPlus1 = q + 1;
+            const halfQPlus1 = (q + 1) / 2;
+            
+            // Compute set A: p < p + 2k < 2p and p + 2k is prime
+            for (let k = 1; k < p; k++) {
+              const value = p + 2 * k;
+              if (value > p && value < p2 && isPrime(value)) {
+                setA.push({ k, value });
+              }
+            }
+            
+            // Compute set B: (q+1)/2 < q - 2k + 2 < q + 1 and q - 2k + 2 is prime
+            for (let k = 1; k < q; k++) {
+              const value = q - 2 * k + 2;
+              if (value > halfQPlus1 && value < qPlus1 && isPrime(value)) {
+                setB.push({ k, value });
+              }
+            }
+            
+            // Find intersection - optimized approach using Map instead of nested loops
+            const setA_k = new Set(setA.map(item => item.k));
+            const intersection = setB.filter(item => setA_k.has(item.k));
+            
+            return { setA, setB, intersection };
+          }, [isPrime]);
+
+          const handleCompute = async () => {
+            setComputing(true);
+            
+            // Use requestIdleCallback or setTimeout to prevent UI blocking
+            setTimeout(() => {
+              try {
+                const startTime = performance.now();
+                
+                const oddNumbers = [];
+                for (let i = 3; i <= bound; i += 2) {
+                  oddNumbers.push(i);
+                }
+                
+                const allResults = [];
+                const totalPairs = oddNumbers.length * oddNumbers.length;
+                
+                // Process all pairs (for smaller bounds) or implement chunked processing for larger bounds
+                for (let pIdx = 0; pIdx < oddNumbers.length; pIdx++) {
+                  for (let qIdx = 0; qIdx < oddNumbers.length; qIdx++) {
+                    const p = oddNumbers[pIdx];
+                    const q = oddNumbers[qIdx];
+                    const { setA, setB, intersection } = computeSets(p, q);
+                    
+                    allResults.push({
+                      p,
+                      q,
+                      sumPlusTwo: p + q + 2,
+                      setA,
+                      setB,
+                      intersection,
+                      sizeA: setA.length,
+                      sizeB: setB.length,
+                      hasIntersection: intersection.length > 0
+                    });
+                  }
+                  
+                  // For very large bounds, we might want to yield control back to the browser
+                  // But for reasonable bounds (< 100), this is acceptable
+                }
+                
+                setResults(allResults);
+                setComputing(false);
+                
+                console.log(`Processing completed in ${performance.now() - startTime}ms`);
+              } catch (error) {
+                console.error('Error during computation:', error);
+                setComputing(false);
+              }
+            }, 0);
+          };
+
+          // Memoize results to prevent unnecessary recalculations
+          const memoizedResults = useMemo(() => {
+            if (!results) return { emptyIntersections: [], nonEmptyIntersections: [], diagonalCase: null };
+            
+            const emptyIntersections = results.filter(r => !r.hasIntersection);
+            const nonEmptyIntersections = results.filter(r => r.hasIntersection);
+            const diagonalCase = results.find(r => r.p === bound && r.q === bound);
+            
+            return { emptyIntersections, nonEmptyIntersections, diagonalCase };
+          }, [results, bound]);
+
+          return (
+            <div className="p-6 max-w-6xl mx-auto space-y-6">
+              <Card>
+                <CardHeader>
+                  <h2 className="text-2xl font-bold">Goldbach Sets A ∩ B Computation</h2>
+                  <p className="text-gray-600">Compute sets for all odd p, q up to your chosen bound</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <label className="font-semibold">Upper bound (odd number):</label>
+                    <input
+                      type="number"
+                      value={bound}
+                      onChange={(e) => {
+                        const val = Math.max(3, parseInt(e.target.value) || 3);
+                        // Ensure it's odd
+                        setBound(val % 2 === 0 ? val + 1 : val);
+                      }}
+                      className="border rounded px-3 py-2 w-32"
+                      step="2"
+                      min="3"
+                    />
+                    <button
+                      onClick={handleCompute}
+                      disabled={computing}
+                      className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      {computing ? 'Computing...' : 'Compute'}
+                    </button>
+                  </div>
+                  
+                  {computing && (
+                    <p className="text-gray-600 italic">Computing all combinations... This may take a moment.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {results && (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <h2 className="text-xl font-bold">Overall Statistics</h2>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <p>Bound: all odd p, q ≤ {bound}</p>
+                        <p>Total cases computed: {results.length}</p>
+                        <p className="text-green-600 font-semibold">Cases with A ∩ B ≠ ∅: {memoizedResults.nonEmptyIntersections.length}</p>
+                        <p className="text-red-600 font-semibold">Cases with A ∩ B = ∅: {memoizedResults.emptyIntersections.length}</p>
+                        <p className="text-lg font-bold mt-4">
+                          {memoizedResults.emptyIntersections.length === 0 ? 
+                            <span className="text-green-600">✓ All cases satisfy A ∩ B ≠ ∅!</span> :
+                            <span className="text-red-600">⚠ Found {memoizedResults.emptyIntersections.length} cases with empty intersection</span>
+                          }
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {memoizedResults.diagonalCase && (
+                    <Card>
+                      <CardHeader>
+                        <h2 className="text-xl font-bold">Featured Case: p = {bound}, q = {bound}</h2>
+                        <p className="text-gray-600">Target even number: 2n = {memoizedResults.diagonalCase.sumPlusTwo}</p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <h3 className="font-semibold mb-2">Set A (size: {memoizedResults.diagonalCase.sizeA})</h3>
+                          <p className="text-sm text-gray-600 mb-2">k values where {bound} &lt; {bound} + 2k &lt; {2*bound} and {bound} + 2k is prime</p>
+                          <div className="bg-gray-50 p-3 rounded max-h-40 overflow-y-auto text-sm">
+                            {memoizedResults.diagonalCase.setA.slice(0, 20).map((item, idx) => (
+                              <span key={idx} className="inline-block mr-3">
+                                k={item.k}→{item.value}
+                              </span>
+                            ))}
+                            {memoizedResults.diagonalCase.setA.length > 20 && <span>... and {memoizedResults.diagonalCase.setA.length - 20} more</span>}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-semibold mb-2">Set B (size: {memoizedResults.diagonalCase.sizeB})</h3>
+                          <p className="text-sm text-gray-600 mb-2">k values where {(bound+1)/2} &lt; {bound+2} - 2k &lt; {bound+1} and {bound+2} - 2k is prime</p>
+                          <div className="bg-gray-50 p-3 rounded max-h-40 overflow-y-auto text-sm">
+                            {memoizedResults.diagonalCase.setB.slice(0, 20).map((item, idx) => (
+                              <span key={idx} className="inline-block mr-3">
+                                k={item.k}→{item.value}
+                              </span>
+                            ))}
+                            {memoizedResults.diagonalCase.setB.length > 20 && <span>... and {memoizedResults.diagonalCase.setB.length - 20} more</span>}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-semibold text-lg mb-2">
+                            Intersection A ∩ B (size: {memoizedResults.diagonalCase.intersection.length})
+                            {memoizedResults.diagonalCase.intersection.length > 0 ? 
+                              <span className="text-green-600 ml-2">✓ Non-empty!</span> : 
+                              <span className="text-red-600 ml-2">✗ Empty</span>
+                            }
+                          </h3>
+                          {memoizedResults.diagonalCase.intersection.length > 0 ? (
+                            <div className="bg-green-50 p-3 rounded">
+                              {memoizedResults.diagonalCase.intersection.slice(0, 5).map((item, idx) => {
+                                const prime1 = bound + 2 * item.k;
+                                const prime2 = item.value;
+                                return (
+                                  <div key={idx} className="mb-2 text-sm">
+                                    <p className="font-semibold">k = {item.k}:</p>
+                                    <p>{bound} + 2({item.k}) = {prime1} (prime)</p>
+                                    <p>{bound} - 2({item.k}) + 2 = {prime2} (prime)</p>
+                                    <p className="font-semibold text-green-700">
+                                      {prime1} + {prime2} = {prime1 + prime2} ✓
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                              {memoizedResults.diagonalCase.intersection.length > 5 && 
+                                <p className="text-sm italic">... and {memoizedResults.diagonalCase.intersection.length - 5} more</p>
+                              }
+                            </div>
+                          ) : (
+                            <div className="bg-red-50 p-3 rounded">
+                              <p className="text-sm">No common k values found.</p>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {memoizedResults.emptyIntersections.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <h2 className="text-xl font-bold text-red-600">⚠ Cases with A ∩ B = ∅</h2>
+                        <p className="text-gray-600">These represent potential counterexamples to Goldbach's conjecture via your reformulation</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="bg-red-50 p-3 rounded max-h-96 overflow-y-auto">
+                          {memoizedResults.emptyIntersections.slice(0, 50).map((r, idx) => (
+                            <div key={idx} className="text-sm mb-2 pb-2 border-b border-red-200">
+                              <span className="font-semibold">p={r.p}, q={r.q}</span> → 2n={r.sumPlusTwo} 
+                              <span className="text-gray-600 ml-2">(|A|={r.sizeA}, |B|={r.sizeB})</span>
+                            </div>
+                          ))}
+                          {memoizedResults.emptyIntersections.length > 50 && 
+                            <p className="text-sm italic">Showing first 50 of {memoizedResults.emptyIntersections.length} cases</p>
+                          }
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        };
+
+        ReactDOM.render(<GoldbachComputation />, document.getElementById('root'));
+    </script>
+</body>
+</html>
